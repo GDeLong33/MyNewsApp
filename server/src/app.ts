@@ -1,11 +1,13 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import { adminRouter } from "./admin.js";
+import type { Summarizer } from "./ai/summarizer.js";
 import { storiesRouter } from "./api.js";
 import type { Collector } from "./collector/collect.js";
 import { bootStats, type Db } from "./db.js";
 
 export interface AppOptions {
   collector?: Collector;
+  summarizer?: Summarizer;
   adminToken?: string;
   /** Clock for retention filtering; injectable for tests. */
   now?: () => Date;
@@ -28,7 +30,7 @@ export function createApp(db: Db, options: AppOptions = {}) {
   });
 
   if (options.collector) {
-    app.use("/admin", adminRouter(db, options.collector, options.adminToken));
+    app.use("/admin", adminRouter(db, options.collector, options.adminToken, options.summarizer));
   }
 
   app.use((_req, res) => {

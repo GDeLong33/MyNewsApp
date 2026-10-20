@@ -21,10 +21,10 @@ RSS feeds ──► hourly worker ──► SQLite (on VM disk) ──► API (/
 | Area | Rubric points | Status |
 |---|---|---|
 | Deployed backend, persistent storage, API, server/client split | 15 | Partly done: deployed with `/health` only, no story API yet |
-| Three-publisher ingestion, hourly schedule, dedupe, 7-day retention | 20 | Done in code and tested; expiry needs deploying; hourly run records still to collect |
-| Automatic story grouping | 15 | Done in code and tested on live data (9 multi-publisher stories); needs deploying |
+| Three-publisher ingestion, hourly schedule, dedupe, 7-day retention | 20 | Done and deployed; hourly run records still to collect for evidence |
+| Automatic story grouping | 15 | Done and deployed: 9 multi-publisher stories on live data |
 | Flutter list, detail, buttons, usability, beta readiness | 20 | Not started: default `flutter create` scaffold only |
-| Grounded AI summaries, perspectives, attribution, shared reuse | 20 | Not started, and no AI provider chosen yet |
+| Grounded AI summaries, perspectives, attribution, shared reuse | 20 | Built and tested with a fake model (Gemini free tier chosen); needs a live test, deploy, and the manual review of 3 summaries |
 | Verification evidence, docs, demo, AI reflection | 10 | Partly done: spec copy, CLAUDE.md, deploy guide |
 
 ## Done
@@ -60,8 +60,7 @@ RSS feeds ──► hourly worker ──► SQLite (on VM disk) ──► API (/
   - Empty stories are deleted, and their summaries go with them (cascade). Stories that lose a source get a new `articles_hash`, so old summaries become stale.
   - `GET /stories` and `GET /stories/:id` (public, read-only).
   - 42 tests pass, including two related-but-separate cases (same person, same country) and a chaining case.
-  - Local live run: 153 articles became 121 stories, 9 of them with 2–3 publishers.
-  - **Not yet deployed.**
+  - **Deployed October 20.** The first run on the server made 126 stories, 9 of them with 2–3 publishers. Live at `/stories`.
 
 ## Still to do
 
@@ -78,7 +77,7 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 
 ### 2. Story grouping (server)
 - [x] Grouping, stable IDs, single-source stories, new coverage joining, evidence and failure modes documented in [grouping.md](grouping.md).
-- [ ] Deploy, then re-check the groups on the VM's live data. Update the evidence table in grouping.md with the deployed results for the verification table.
+- [x] Deployed and checked on the VM's live data. Evidence table in grouping.md updated.
 
 ### 3. Story API (server)
 - [x] `GET /stories` and `GET /stories/:id`, documented in [api.md](api.md).
@@ -91,13 +90,11 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 - [ ] Demo relevant links on 3+ stories.
 
 ### 5. AI summaries and perspectives (server)
-- [ ] **Needs Gavin:** choose an AI provider and put the API key in the VM's `server/.env`.
-- [ ] Overview covering agreement, disagreement and uncertainty, plus perspectives only when the coverage supports them (otherwise "Insufficient evidence for distinct perspectives").
-- [ ] Cite the supporting articles, store the generation time, label output "AI-generated", and disclose when the input was only feed excerpts.
-- [ ] Generate once, keyed by a hash of the input articles. Regenerate only when the inputs change. Reads never call the AI.
-- [ ] Treat article text as data in the prompt, to guard against prompt injection. Save prompts and model config in the repo.
-- [ ] On failure, store an honest error status and never show fake text.
-- [ ] Manually review 3 summaries against their inputs and fix any unsupported claims.
+- [x] Provider: Google Gemini free tier. Key is in the VM's `server/.env` as `GEMINI_API_KEY`.
+- [x] Prompt, model config, Gemini client, validation, summarizer job, storage and `ai` field on `GET /stories/:id` ([ai.md](ai.md)). 14 tests with a fake model, 56 total.
+- [ ] Deploy and confirm the live model works. Check `/admin/ai-calls` for errors such as the wrong model name or quota.
+- [ ] Manually review 3 summaries against their inputs, fix any unsupported claims, and record the results in ai.md.
+- [ ] Find 3+ stories with real contrasting perspectives for the demo.
 
 ### 6. Flutter app (`/flutter_application_1`)
 - [ ] Story list: headline, time, publisher count, pull-to-refresh, and loading/empty/error states with retry.
@@ -124,7 +121,6 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 
 | What | When it's needed |
 |---|---|
-| AI provider choice + API key in the VM's `server/.env` | Before step 5 |
 | `ADMIN_TOKEN` in the VM's `server/.env` (`openssl rand -hex 32`, see [deploy.md](deploy.md)) | Now, when deploying the collector |
 | Flutter SDK and Android toolchain working on the PC (`flutter doctor`) | Before step 6 |
 | Phone with USB debugging enabled + Phone Link tested | Before the demo |

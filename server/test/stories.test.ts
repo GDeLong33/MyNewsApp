@@ -192,7 +192,7 @@ test("expiry deletes articles past 168 hours, removes empty stories and their su
   const { db, collector, set } = setup({ [FOX.url]: [old], [NPR.url]: [trumpRally], [BBC.url]: [] }, clock);
   await collector.run("manual");
   const oldStory = storyOf(db, old.link!);
-  db.prepare("INSERT INTO story_summaries (story_id, input_hash, status) VALUES (?, 'x', 'ready')").run(oldStory);
+  db.prepare("INSERT INTO story_summaries (story_id, input_hash, content_json) VALUES (?, 'x', '{}')").run(oldStory);
 
   clock.now = new Date(NOW.getTime() + 10 * 3600_000); // old article is now 170 hours old
   set({ [FOX.url]: [] });
@@ -232,7 +232,7 @@ test("a story that loses one source keeps the rest, and its summary fingerprint 
   const story = storyOf(db, oldFox.link!);
   assert.equal(storyOf(db, bbc.link!), story);
   const before = db.prepare("SELECT articles_hash FROM stories WHERE id = ?").get(story) as { articles_hash: string };
-  db.prepare("INSERT INTO story_summaries (story_id, input_hash, status) VALUES (?, ?, 'ready')").run(story, before.articles_hash);
+  db.prepare("INSERT INTO story_summaries (story_id, input_hash, content_json) VALUES (?, ?, '{}')").run(story, before.articles_hash);
 
   clock.now = new Date(NOW.getTime() + 69 * 3600_000); // Fox is now 169h old (expires); NPR 167h and BBC 129h stay
   await collector.run("schedule");

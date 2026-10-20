@@ -23,4 +23,15 @@ export const config = {
   adminToken: usableAdminToken(process.env.ADMIN_TOKEN),
   // Collect once at startup if the last run is older than ~50 minutes.
   collectOnStartup: process.env.COLLECT_ON_STARTUP !== "false",
+  // AI summaries (Gemini). No key = summaries stay "pending"; the rest of the server works normally.
+  geminiApiKey: process.env.GEMINI_API_KEY || undefined,
+  geminiModel: process.env.GEMINI_MODEL || undefined,
+  // Free-tier pacing: at most this many stories per hourly run, with this gap between calls.
+  aiMaxPerRun: positiveInt(process.env.AI_MAX_PER_RUN, 20),
+  aiMinIntervalMs: positiveInt(process.env.AI_MIN_INTERVAL_MS, 6500),
 };
+
+function positiveInt(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}

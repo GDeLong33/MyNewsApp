@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { aiView, type SummaryRow } from "./ai/view.js";
 import { lastSuccessfulCollectionAt } from "./collector/collect.js";
 import type { Db } from "./db.js";
 import { RETENTION_HOURS, retentionCutoffIso } from "./retention.js";
@@ -66,9 +67,9 @@ export function storiesRouter(db: Db, now: () => Date): Router {
 
   // Story detail: its articles grouped by publisher (one "Original coverage" button per publisher).
   router.get("/stories/:id", (req, res) => {
-    const story = db.prepare("SELECT id, headline, created_at FROM stories WHERE id = ?").get(req.params.id) as
-      | { id: string; headline: string; created_at: string }
-      | undefined;
+    const story = db
+      .prepare("SELECT id, headline, created_at, articles_hash FROM stories WHERE id = ?")
+      .get(req.params.id) as { id: string; headline: string; created_at: string; articles_hash: string } | undefined;
     const articles = story
       ? (db
           .prepare(`
@@ -85,6 +86,10 @@ export function storiesRouter(db: Db, now: () => Date): Router {
 
     const byPublisher = new Map<string, ArticleRow[]>();
     for (const a of articles) byPublisher.set(a.publisher, [...(byPublisher.get(a.publisher) ?? []), a]);
+
+    // Stored AI output only; reading a story never calls the model.
+    const summary = db.prepare("SELECT * FROM story_summaries WHERE story_id = ?").get(story.id) as SummaryRow | undefined;
+    const ai = aiView(summary, articles.map((a) => a.id), story.articles_hash);
 
     res.json({
       id: story.id,
@@ -109,6 +114,7 @@ export function storiesRouter(db: Db, now: () => Date): Router {
             grouping: a.story_match_json ? JSON.parse(a.story_match_json) : null,
           })),
         })),
+      ai,
     });
   });
 

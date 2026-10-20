@@ -114,4 +114,44 @@ export const migrations: Migration[] = [
       ALTER TABLE job_runs ADD COLUMN stories_removed INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: 4,
+    name: "ai_summaries",
+    sql: `
+      -- Replaces the placeholder from migration 3 (it never held rows). One row per story, deleted with it.
+      DROP TABLE story_summaries;
+      CREATE TABLE story_summaries (
+        story_id TEXT PRIMARY KEY REFERENCES stories(id) ON DELETE CASCADE,
+        -- Last successful generation (NULL until one succeeds). A failure never erases it.
+        content_json TEXT,
+        input_hash TEXT,                    -- stories.articles_hash when generated
+        input_article_ids TEXT,             -- JSON array of the article IDs sent to the model
+        excerpt_only INTEGER NOT NULL DEFAULT 1,
+        model TEXT,
+        prompt_version TEXT,
+        generated_at TEXT,
+        -- Last attempt, successful or not.
+        last_attempt_at TEXT,
+        last_attempt_hash TEXT,
+        last_error TEXT                     -- NULL when the last attempt succeeded
+      );
+
+      -- Operational log of every model call: proves reads don't trigger generation. Holds no article or summary text.
+      CREATE TABLE ai_calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        story_id TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        prompt_version TEXT NOT NULL,
+        input_hash TEXT NOT NULL,
+        article_count INTEGER NOT NULL,
+        ok INTEGER NOT NULL,
+        error TEXT,
+        input_tokens INTEGER,
+        output_tokens INTEGER
+      );
+      CREATE INDEX idx_ai_calls_started_at ON ai_calls(started_at);
+    `,
+  },
 ];

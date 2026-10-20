@@ -62,7 +62,7 @@ The server collects news from several publishers, groups articles about the same
 
 Hosting: the user's Oracle Cloud Always Free VM (Ubuntu 20.04, ARM64), running Docker Compose with Caddy for HTTPS. See [docs/deploy.md](docs/deploy.md).
 
-The AI provider isn't chosen yet. Ask before picking one.
+AI provider: Google Gemini (free tier), key in `GEMINI_API_KEY`. See [docs/ai.md](docs/ai.md).
 
 ## Rules
 

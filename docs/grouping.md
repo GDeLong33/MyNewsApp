@@ -54,21 +54,23 @@ All cross-publisher article pairs from a live collection on October 20, 2026 (15
 - **Fixes:** job titles were removed from name phrases, and the stricter *moderate* rule was added for 0.20–0.35. All three pairs are now rejected, and the 9 multi-publisher stories below are still found. One borderline true pair was lost: Fox's "Ilhan Omar's sister questioned by feds" vs. BBC's "Obama blasts federal probe of Ilhan Omar" (0.253, only 1 shared name). The rules deliberately favor missing a merge over making a wrong one.
 - **Chaining showed up in the first live grouping run.** "Trump's Russia-friendly moves" joined a DOJ voting-crimes story through NPR's "Morning news brief", which mentions both topics. Requiring a strict majority of members to be related fixed it, without splitting any real story.
 
-## Live results (local run against the live feeds, October 20, 2026)
+## Live results (deployed server, October 20, 2026)
 
-153 articles became 121 stories. 9 have 2–3 publishers, 13 more have several articles from one publisher, and 99 are single-article stories.
+On the deployed server's first grouping run, the stored live articles became 126 stories. 9 have 2–3 publishers, 13 more have several articles from one publisher, and 104 are single-article stories. A local run against the same feeds 30 minutes earlier produced the same 9 multi-publisher groups.
 
-| Story (headline chosen by the server) | Publishers | Articles |
-|---|---|---|
-| Alberta voters decide whether to take a step toward separating from Canada | BBC News, Fox News, NPR | 4 |
-| Violence erupts at France protests as Macron warns unrest is being exploited | Fox News, NPR | 6 |
-| 4 Canadian soldiers killed, dozens injured after fast-moving fire erupts at military base | BBC News, Fox News | 3 |
-| Pope Leo XIV thanks wellwishers in first event after cancer surgery | BBC News, Fox News | 2 |
-| Saudi Arabia on edge: Iconic Kingdom Centre sends workers home amid Houthi attacks | BBC News, Fox News | 2 |
-| Limoges Town Hall 'largely lost' after far-left rioters set historic building on fire | BBC News, Fox News | 2 |
-| Rays will face Brewers in World Series to produce a first-time champion | Fox News, NPR | 2 |
-| Obama blasts federal probe of Ilhan Omar as 'so appalling' | BBC News, Fox News | 2 |
-| Judge chastises Trump administration plan to push ahead overhaul of DC golf course | Fox News, NPR | 2 |
+| Story (headline chosen by the server) | Publishers | Articles | Story ID |
+|---|---|---|---|
+| Alberta voters decide whether to take a step toward separating from Canada | BBC News, Fox News, NPR | 4 | `s_d59e3aee7e77424507d64f1c` |
+| Violence erupts at France protests as Macron warns unrest is being exploited | Fox News, NPR | 6 | `s_a2f096fefb2a7d73f665af61` |
+| 4 Canadian soldiers killed, dozens injured after fast-moving fire erupts at military base | BBC News, Fox News | 3 | `s_d52d08bec5175b56278161ee` |
+| Pope Leo XIV thanks wellwishers in first event after cancer surgery | BBC News, Fox News | 2 | `s_0d5edefabea466697791cb75` |
+| Saudi Arabia on edge: Iconic Kingdom Centre sends workers home amid Houthi attacks | BBC News, Fox News | 2 | `s_40214389b5a6dbe596b27a2a` |
+| Limoges Town Hall 'largely lost' after far-left rioters set historic building on fire | BBC News, Fox News | 2 | `s_b720abf172c6a81406a03e7e` |
+| Rays will face Brewers in World Series to produce a first-time champion | Fox News, NPR | 2 | `s_5f4ec105e6c165ded767f53d` |
+| Obama blasts federal probe of Ilhan Omar as 'so appalling' | BBC News, Fox News | 2 | `s_c9bec4fb200e38ebaf158cfa` |
+| Judge chastises Trump administration plan to push ahead overhaul of DC golf course | Fox News, NPR | 2 | `s_8ced3e09efe9b7819f6a3487` |
+
+Open any of them at `https://163-192-125-189.sslip.io/stories/<id>`. These stories will expire 168 hours after their articles were published, so the IDs are evidence for this date only.
 
 The golf-course pair was checked against the excerpts. Both are about Judge Ana Reyes and the East Potomac Golf Links case.
 

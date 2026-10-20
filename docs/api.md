@@ -63,7 +63,34 @@ One story, with its current articles grouped by publisher. Each publisher become
 
 - `publishedAtEstimated: true` means the feed gave no valid date, so the first-seen time is used. See [collection.md](collection.md).
 - `grouping` explains why the article joined the story. It is `null` for the article that founded the story. See [grouping.md](grouping.md).
-- AI overview and perspectives fields will be added in the AI step.
+
+The detail response also includes `ai`, the stored AI analysis. See [ai.md](ai.md) for when each status applies.
+
+```json
+"ai": {
+  "status": "ready",
+  "message": "AI-generated analysis of the coverage listed below.",
+  "label": "AI-generated",
+  "generatedAt": "2026-10-20T23:01:12.000Z",
+  "model": "gemini-2.5-flash",
+  "promptVersion": "2026-10-20.1",
+  "inputScope": "Generated from feed headlines and short excerpts only, not full articles. Read the original coverage for full context.",
+  "inputArticleIds": ["9c0e…", "75ee…"],
+  "overview": { "text": "…", "citations": ["9c0e…", "75ee…"] },
+  "agreement": [{ "text": "…", "citations": ["…"] }],
+  "disagreement": [],
+  "uncertainties": [{ "text": "…", "citations": ["…"] }],
+  "perspectives": {
+    "status": "supported",
+    "message": null,
+    "items": [{ "name": "Supporters of independence", "summary": "…", "evidenceLimits": "…", "citations": ["…"] }]
+  }
+}
+```
+
+- `status` is one of `ready`, `outdated` (shown, but flagged as missing newer articles), `pending` (none yet, or it depended on an expired article) or `failed`. For `pending` and `failed`, `overview` is `null` and `perspectives` is `null`. Show `message` instead.
+- `citations` are article `id`s from `sources[].articles[]`.
+- When `perspectives.status` is `insufficient_evidence`, `items` is empty and `message` is "Insufficient evidence for distinct perspectives."
 
 ## Admin
 
@@ -74,3 +101,5 @@ Admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>`. They're described
 | `POST /admin/collect` | Run a collection now, including expiry and grouping. |
 | `GET /admin/runs` | Job log with per-feed results. Each run also records `articles_expired`, `stories_created`, `articles_joined` and `stories_removed`. |
 | `GET /admin/articles` | Raw stored articles. |
+| `POST /admin/summarize` | Run an AI summarization pass now and wait for it to finish. |
+| `GET /admin/ai-calls` | AI call log, totals, and summary coverage. |
