@@ -17,7 +17,9 @@ Output is generated during backend processing, stored in SQLite, and served to e
 ## Model configuration
 
 - **Provider:** Google Gemini API (`generativelanguage.googleapis.com/v1beta`), free tier.
-- **Model:** `gemini-2.5-flash` by default. Override it with `GEMINI_MODEL`. The model version Gemini reports back is stored with each summary and each call.
+- **Model:** `gemini-3.8-flash` by default. Override it with `GEMINI_MODEL`. The model version Gemini reports back is stored with each summary and each call.
+  - The first choice was `gemini-2.5-flash`. On the first deploy (October 20), all 40 calls in that batch failed with HTTP 404 "no longer available to new users", and the API named `gemini-3.8-flash` as the replacement.
+  - That incident led to two fixes. HTTP 400/401/403/404 is now a *configuration error* that stops the batch after one call. And `POST /admin/summarize?retryFailed=true` skips the 2-hour retry wait once the setting is fixed.
 - **Settings:** temperature 0.2, max output 4,096 tokens, 60-second timeout. JSON output is forced with `responseMimeType: application/json` and a `responseSchema`.
 - **Key:** `GEMINI_API_KEY`, kept only in the server's `.env`. It's sent in the `x-goog-api-key` header (never the URL), so it can't appear in logged errors. The Flutter app never sees it.
 
@@ -82,6 +84,7 @@ Anything dropped is recorded in that call's `ai_calls.error` field for review.
 - A model error is recorded against that story (`last_error`) and in `ai_calls`. Errors include timeouts, HTTP errors, rate limits, blocked output, truncated output and invalid output. **A failure never erases an earlier successful summary.**
 - A story whose current inputs failed isn't retried for 2 hours.
 - A rate-limit response (HTTP 429) stops the batch right away. The remaining stories wait for the next hourly run.
+- A configuration error (HTTP 400/401/403/404, such as a bad key or an unknown model) also stops the batch after one call.
 - Without `GEMINI_API_KEY`, the summarizer does nothing and stories show `pending`. Collection, grouping and the API work normally.
 
 ## Quotas and cost
@@ -97,7 +100,7 @@ Anything dropped is recorded in that call's `ai_calls.error` field for review.
 
 ## Admin endpoints
 
-- `POST /admin/summarize` runs a summarization pass now and waits for it to finish.
+- `POST /admin/summarize` runs a summarization pass now and waits for it to finish. Add `?retryFailed=true` to retry recently failed stories immediately.
 - `GET /admin/ai-calls` shows the call log, totals, and coverage (stories with a current, outdated or missing summary).
 - `POST /admin/collect` also starts a summarization pass in the background after collecting.
 

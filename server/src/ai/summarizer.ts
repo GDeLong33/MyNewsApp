@@ -32,9 +32,14 @@ export class SummarizerBusyError extends Error {
   }
 }
 
+export interface RunOptions {
+  /** Ignore the retry back-off, e.g. after fixing a configuration error. */
+  retryFailed?: boolean;
+}
+
 export interface Summarizer {
   readonly running: boolean;
-  run(): Promise<SummarizeResult>;
+  run(runOptions?: RunOptions): Promise<SummarizeResult>;
 }
 
 /** Articles sent per story; one per publisher first, then the newest others. */
@@ -61,9 +66,9 @@ export function createSummarizer(db: Db, options: SummarizerOptions): Summarizer
     get running() {
       return active !== null;
     },
-    run() {
+    run(runOptions = {}) {
       if (active) return Promise.reject(new SummarizerBusyError());
-      active = runOnce(db, options).finally(() => {
+      active = runOnce(db, options, runOptions).finally(() => {
         active = null;
       });
       return active;
@@ -103,14 +108,15 @@ function pickArticles(rows: ArticleRow[]): ArticleRow[] {
   return chosen.slice(0, MAX_PROMPT_ARTICLES).sort((a, b) => a.published_at.localeCompare(b.published_at));
 }
 
-async function runOnce(db: Db, options: SummarizerOptions): Promise<SummarizeResult> {
+async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOptions): Promise<SummarizeResult> {
   const now = options.now ?? (() => new Date());
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const result: SummarizeResult = { skipped: null, candidates: 0, attempted: 0, generated: 0, failed: 0, stoppedEarly: null };
   if (!options.client) return { ...result, skipped: "no_api_key" };
   const client = options.client;
 
-  const candidates = storiesNeedingSummary(db, now(), options.retryAfterMs ?? DEFAULT_RETRY_AFTER_MS, options.maxPerRun);
+  const retryAfterMs = runOptions.retryFailed ? 0 : (options.retryAfterMs ?? DEFAULT_RETRY_AFTER_MS);
+  const candidates = storiesNeedingSummary(db, now(), retryAfterMs, options.maxPerRun);
   result.candidates = candidates.length;
 
   const loadArticles = db.prepare(`
@@ -189,6 +195,10 @@ async function runOnce(db: Db, options: SummarizerOptions): Promise<SummarizeRes
         message.slice(0, 500), usage.input, usage.output);
       if (err instanceof ModelError && err.kind === "rate_limited") {
         result.stoppedEarly = "rate limited; remaining stories wait for the next run";
+        break;
+      }
+      if (err instanceof ModelError && err.kind === "config") {
+        result.stoppedEarly = `configuration error, stopping until it is fixed: ${message.slice(0, 200)}`;
         break;
       }
       if (!(err instanceof ModelError) && !(err instanceof InvalidOutputError)) console.error("summarizer error", err);

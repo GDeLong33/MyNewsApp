@@ -260,6 +260,25 @@ test("rate limiting stops the batch; multi-publisher stories go first; maxPerRun
   assert.equal(Number((capped.db.prepare("SELECT COUNT(*) AS n FROM stories").get() as { n: number }).n), 2);
 });
 
+test("a configuration error stops the batch, and retryFailed skips the back-off once it is fixed", async () => {
+  const model = new FakeModel(() => new ModelError("config", "Gemini returned HTTP 404: model not available"));
+  const { db, collector, summarizer } = setup(
+    { [FOX.url]: [ebolaFox, tariffs], [NPR.url]: [ebolaNpr], [BBC.url]: [ebolaBbc] },
+    model,
+  );
+  await collector.run("manual");
+  const broken = await summarizer.run();
+  assert.equal(broken.attempted, 1, "one failed call, not one per story");
+  assert.match(broken.stoppedEarly!, /configuration error/);
+
+  model.setResponder(goodOutput);
+  assert.equal((await summarizer.run()).candidates, 1, "the failed story waits for the back-off; the untried one runs");
+  const retried = await summarizer.run({ retryFailed: true });
+  assert.equal(retried.generated, 1);
+  const missing = db.prepare("SELECT COUNT(*) AS n FROM stories s LEFT JOIN story_summaries m ON m.story_id = s.id WHERE m.content_json IS NULL").get() as { n: number };
+  assert.equal(Number(missing.n), 0);
+});
+
 test("without an API key nothing is generated and the API says pending", async () => {
   const { db, collector, summarizer } = setup({ [FOX.url]: [tariffs], [NPR.url]: [], [BBC.url]: [] }, null);
   await collector.run("manual");
@@ -366,6 +385,8 @@ test("the Gemini client sends the key in a header, parses JSON text, and classif
 
   const cases: [number, unknown, string][] = [
     [429, { error: { message: "quota" } }, "rate_limited"],
+    [404, { error: { message: "model is no longer available" } }, "config"],
+    [403, {}, "config"],
     [500, {}, "http"],
     [200, { promptFeedback: { blockReason: "SAFETY" } }, "blocked"],
     [200, { candidates: [{ content: { parts: [{ text: '{"a":' }] }, finishReason: "MAX_TOKENS" }] }, "truncated"],

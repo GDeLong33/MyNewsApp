@@ -56,14 +56,14 @@ export function adminRouter(
     }
   });
 
-  // Manual AI summarization pass; waits for it to finish.
-  router.post("/summarize", async (_req, res) => {
+  // Manual AI summarization pass; waits for it to finish. ?retryFailed=true skips the 2-hour retry back-off.
+  router.post("/summarize", async (req, res) => {
     if (!summarizer) {
       res.status(503).json({ error: "summarizer_unavailable" });
       return;
     }
     try {
-      res.json(await summarizer.run());
+      res.json(await summarizer.run({ retryFailed: req.query.retryFailed === "true" }));
     } catch (err) {
       if (err instanceof SummarizerBusyError) {
         res.status(409).json({ error: "summarizer_running", message: err.message });

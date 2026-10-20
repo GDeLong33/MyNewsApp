@@ -8,16 +8,31 @@ export interface ModelConfig {
   timeoutMs: number;
 }
 
-/** Defaults; GEMINI_MODEL overrides the model name. */
+/**
+ * Defaults; GEMINI_MODEL overrides the model name. gemini-2.5-flash was the first choice, but on 2026-10-20 the API
+ * rejected it for new accounts ("no longer available to new users") and named gemini-3.8-flash as its replacement.
+ */
 export const DEFAULT_MODEL_CONFIG: ModelConfig = {
   provider: "gemini",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.8-flash",
   temperature: 0.2,
   maxOutputTokens: 4096,
   timeoutMs: 60_000,
 };
 
-export type ModelErrorKind = "rate_limited" | "http" | "blocked" | "truncated" | "empty" | "timeout" | "network";
+/**
+ * "config" = the request itself is wrong (bad key, unknown model, invalid request): retrying other stories is
+ * pointless until the configuration is fixed, so the summarizer stops the batch.
+ */
+export type ModelErrorKind =
+  | "rate_limited"
+  | "config"
+  | "http"
+  | "blocked"
+  | "truncated"
+  | "empty"
+  | "timeout"
+  | "network";
 
 export class ModelError extends Error {
   constructor(
@@ -89,6 +104,9 @@ export class GeminiClient implements ModelClient {
     if (!res.ok) {
       const detail = await errorDetail(res);
       if (res.status === 429) throw new ModelError("rate_limited", `rate limited by Gemini (HTTP 429)${detail}`);
+      if ([400, 401, 403, 404].includes(res.status)) {
+        throw new ModelError("config", `Gemini returned HTTP ${res.status}${detail}`);
+      }
       throw new ModelError("http", `Gemini returned HTTP ${res.status}${detail}`);
     }
 
