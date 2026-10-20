@@ -148,10 +148,33 @@ interface GeminiResponse {
   modelVersion?: string;
 }
 
-async function errorDetail(res: Response): Promise<string> {
+interface GeminiErrorBody {
+  error?: {
+    message?: string;
+    details?: {
+      "@type"?: string;
+      violations?: { quotaId?: string; quotaValue?: string }[];
+      retryDelay?: string;
+    }[];
+  };
+}
+
+/**
+ * Short, useful error text. For quota errors the quota name, limit and suggested retry delay come first, so they
+ * survive truncation (they say whether a per-minute or per-day limit was hit).
+ */
+export async function errorDetail(res: Response): Promise<string> {
   try {
-    const body = (await res.json()) as { error?: { message?: string } };
-    return body.error?.message ? `: ${body.error.message.slice(0, 300)}` : "";
+    const body = (await res.json()) as GeminiErrorBody;
+    const parts: string[] = [];
+    for (const d of body.error?.details ?? []) {
+      for (const v of d.violations ?? []) {
+        if (v.quotaId) parts.push(`quota ${v.quotaId}${v.quotaValue ? ` (limit ${v.quotaValue})` : ""}`);
+      }
+      if (d.retryDelay) parts.push(`retry after ${d.retryDelay}`);
+    }
+    if (body.error?.message) parts.push(body.error.message.split("\n")[0].slice(0, 200));
+    return parts.length ? `: ${parts.join("; ")}` : "";
   } catch {
     return "";
   }

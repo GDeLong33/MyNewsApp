@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { test } from "node:test";
 import { GeminiClient, DEFAULT_MODEL_CONFIG, ModelError, type ModelClient, type ModelRequest } from "../src/ai/model.js";
 import { ARTICLES_BEGIN, ARTICLES_END, buildUserPrompt, SYSTEM_PROMPT } from "../src/ai/prompt.js";
+import { startOfQuotaDay } from "../src/ai/quota.js";
 import { createSummarizer } from "../src/ai/summarizer.js";
 import { InvalidOutputError, validateAnalysis } from "../src/ai/validate.js";
 import { createApp } from "../src/app.js";
@@ -96,8 +97,8 @@ function storyOf(db: Db, url: string): string {
   return (db.prepare("SELECT story_id FROM articles WHERE url = ?").get(url) as { story_id: string }).story_id;
 }
 
-async function getStory(db: Db, id: string, now: Date) {
-  const server = createApp(db, { now: () => now }).listen(0);
+async function getStory(db: Db, id: string, now: Date, aiMinArticles = 1) {
+  const server = createApp(db, { now: () => now, aiMinArticles }).listen(0);
   try {
     const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/stories/${id}`);
     return { status: res.status, body: await res.json() };
@@ -334,6 +335,58 @@ test("several stories in a row hitting an overloaded model stop the batch", asyn
   assert.match(result.stoppedEarly!, /unavailable for 3 stories in a row/);
 });
 
+test("the quota day starts at midnight Pacific time, matching Gemini's free-tier reset", () => {
+  // October is daylight time (UTC-7): midnight Pacific = 07:00 UTC.
+  assert.equal(startOfQuotaDay(new Date("2026-10-20T23:45:00Z")).toISOString(), "2026-10-20T07:00:00.000Z");
+  assert.equal(startOfQuotaDay(new Date("2026-10-21T06:59:00Z")).toISOString(), "2026-10-20T07:00:00.000Z");
+  assert.equal(startOfQuotaDay(new Date("2026-10-21T07:00:00Z")).toISOString(), "2026-10-21T07:00:00.000Z");
+  // December is standard time (UTC-8).
+  assert.equal(startOfQuotaDay(new Date("2026-12-01T12:00:00Z")).toISOString(), "2026-12-01T08:00:00.000Z");
+});
+
+test("the daily budget caps model calls (retries included) and resets the next quota day", async () => {
+  const model = new FakeModel();
+  const clock = { now: NOW };
+  const db = openDb(":memory:");
+  const feeds = { [FOX.url]: rss([ebolaFox, tariffs]), [NPR.url]: rss([ebolaNpr, rally]), [BBC.url]: rss([ebolaBbc, floods]) };
+  const collector = createCollector(db, { feeds: [FOX, NPR, BBC], fetcher: fakeFetcher(feeds), now: () => clock.now });
+  const summarizer = createSummarizer(db, {
+    client: model, maxPerRun: 10, minIntervalMs: 0, dailyBudget: 2, now: () => clock.now, sleep: async () => {}, publishers: PUBLISHERS,
+  });
+  await collector.run("manual");
+
+  const first = await summarizer.run();
+  assert.equal(first.generated, 2);
+  assert.equal(model.calls.length, 2);
+  const second = await summarizer.run();
+  assert.equal(second.attempted, 0);
+  assert.match(second.stoppedEarly!, /daily AI budget used \(2\/2/);
+
+  clock.now = new Date("2026-10-21T07:30:00Z"); // next Pacific day
+  assert.equal((await summarizer.run()).generated, 2);
+  assert.equal(model.calls.length, 4);
+});
+
+test("stories below the article minimum are never sent to the model and say why", async () => {
+  const model = new FakeModel();
+  const db = openDb(":memory:");
+  const feeds = { [FOX.url]: rss([ebolaFox, tariffs]), [NPR.url]: rss([ebolaNpr]), [BBC.url]: rss([]) };
+  const collector = createCollector(db, { feeds: [FOX, NPR, BBC], fetcher: fakeFetcher(feeds), now: () => NOW });
+  const summarizer = createSummarizer(db, {
+    client: model, maxPerRun: 10, minIntervalMs: 0, minArticles: 2, now: () => NOW, sleep: async () => {}, publishers: PUBLISHERS,
+  });
+  await collector.run("manual");
+  const result = await summarizer.run();
+  assert.equal(result.candidates, 1, "only the 2-article Ebola story qualifies");
+  assert.match(model.calls[0].user, /Ebola/);
+
+  const single = (await getStory(db, storyOf(db, tariffs.link!), NOW, 2)).body.ai;
+  assert.equal(single.status, "not_available");
+  assert.match(single.message, /at least 2 articles/);
+  assert.equal(single.overview, null);
+  assert.equal((await getStory(db, storyOf(db, ebolaFox.link!), NOW, 2)).body.ai.status, "ready");
+});
+
 test("without an API key nothing is generated and the API says pending", async () => {
   const { db, collector, summarizer } = setup({ [FOX.url]: [tariffs], [NPR.url]: [], [BBC.url]: [] }, null);
   await collector.run("manual");
@@ -448,6 +501,21 @@ test("the Gemini client sends the key in a header, parses JSON text, and classif
     [200, { candidates: [{ content: { parts: [{ text: '{"a":' }] }, finishReason: "MAX_TOKENS" }] }, "truncated"],
     [200, { candidates: [] }, "empty"],
   ];
+  const quota = new GeminiClient("k", DEFAULT_MODEL_CONFIG, respond(429, {
+    error: {
+      message: "You exceeded your current quota, please check your plan and billing details.\n* Quota exceeded for metric: ...",
+      details: [
+        { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier", quotaValue: "20" }] },
+        { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "39s" },
+      ],
+    },
+  }) as typeof fetch);
+  await assert.rejects(quota.generate({ system: "s", user: "u", schema: {} }), (err: unknown) => {
+    assert.ok(err instanceof ModelError);
+    assert.match(err.message, /^rate limited by Gemini \(HTTP 429\): quota GenerateRequestsPerDayPerProjectPerModel-FreeTier \(limit 20\); retry after 39s; You exceeded/);
+    return true;
+  });
+
   for (const [status, body, kind] of cases) {
     const client = new GeminiClient("k", DEFAULT_MODEL_CONFIG, respond(status, body) as typeof fetch);
     await assert.rejects(client.generate({ system: "s", user: "u", schema: {} }), (err: unknown) => {

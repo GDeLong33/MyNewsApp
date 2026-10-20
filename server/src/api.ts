@@ -32,7 +32,7 @@ function limitParam(value: unknown, fallback: number, max: number): number {
   return Number.isInteger(n) && n > 0 ? Math.min(n, max) : fallback;
 }
 
-export function storiesRouter(db: Db, now: () => Date): Router {
+export function storiesRouter(db: Db, now: () => Date, aiMinArticles = 1): Router {
   const router = Router();
 
   // Top stories: one entry per story, newest coverage first.
@@ -89,7 +89,7 @@ export function storiesRouter(db: Db, now: () => Date): Router {
 
     // Stored AI output only; reading a story never calls the model.
     const summary = db.prepare("SELECT * FROM story_summaries WHERE story_id = ?").get(story.id) as SummaryRow | undefined;
-    const ai = aiView(summary, articles.map((a) => a.id), story.articles_hash);
+    const ai = aiView(summary, articles.map((a) => a.id), story.articles_hash, aiMinArticles);
 
     res.json({
       id: story.id,

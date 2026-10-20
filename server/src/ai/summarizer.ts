@@ -1,6 +1,7 @@
 import type { Db } from "../db.js";
 import { retentionCutoffIso } from "../retention.js";
 import { ModelError, type ModelClient } from "./model.js";
+import { startOfQuotaDay } from "./quota.js";
 import { buildUserPrompt, PROMPT_VERSION, RESPONSE_SCHEMA, SYSTEM_PROMPT, type PromptArticle } from "./prompt.js";
 import { InvalidOutputError, validateAnalysis } from "./validate.js";
 
@@ -14,6 +15,10 @@ export interface SummarizerOptions {
   retryAfterMs?: number;
   /** Pause before the single in-batch retry of a temporary provider error (overload, timeout). */
   transientRetryDelayMs?: number;
+  /** Model calls allowed per quota day (midnight to midnight Pacific), retries included. Default: unlimited. */
+  dailyBudget?: number;
+  /** Only stories with at least this many current articles get AI analysis. Default: 1 (all). */
+  minArticles?: number;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
   publishers: string[];
@@ -85,19 +90,39 @@ export function createSummarizer(db: Db, options: SummarizerOptions): Summarizer
  * Stories whose stored summary doesn't match their current articles (or that have none), most important first:
  * more publishers, then more articles, then newest. A story whose current inputs already failed recently waits.
  */
-export function storiesNeedingSummary(db: Db, now: Date, retryAfterMs: number, limit: number): CandidateRow[] {
+export function storiesNeedingSummary(
+  db: Db,
+  now: Date,
+  retryAfterMs: number,
+  limit: number,
+  minArticles = 1,
+): CandidateRow[] {
   return db
     .prepare(`
       SELECT s.id, s.headline, s.articles_hash
       FROM stories s LEFT JOIN story_summaries m ON m.story_id = s.id
       WHERE s.updated_at >= ?
+        AND s.article_count >= ?
         AND (m.input_hash IS NULL OR m.input_hash != s.articles_hash)
         AND NOT (m.last_error IS NOT NULL AND m.last_error_retryable = 0
                  AND m.last_attempt_hash = s.articles_hash AND m.last_attempt_at > ?)
       ORDER BY s.publisher_count DESC, s.article_count DESC, s.updated_at DESC, s.id
       LIMIT ?
     `)
-    .all(retentionCutoffIso(now), new Date(now.getTime() - retryAfterMs).toISOString(), limit) as unknown as CandidateRow[];
+    .all(
+      retentionCutoffIso(now),
+      minArticles,
+      new Date(now.getTime() - retryAfterMs).toISOString(),
+      limit,
+    ) as unknown as CandidateRow[];
+}
+
+/** Model calls already made in the current quota day. */
+export function callsToday(db: Db, now: Date): number {
+  const row = db
+    .prepare("SELECT COUNT(*) AS n FROM ai_calls WHERE started_at >= ?")
+    .get(startOfQuotaDay(now).toISOString()) as { n: number };
+  return Number(row.n);
 }
 
 function pickArticles(rows: ArticleRow[]): ArticleRow[] {
@@ -121,8 +146,14 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
   if (!options.client) return { ...result, skipped: "no_api_key" };
   const client = options.client;
 
+  const budget = options.dailyBudget ?? Number.POSITIVE_INFINITY;
+  let used = callsToday(db, now());
+  if (used >= budget) {
+    return { ...result, stoppedEarly: `daily AI budget used (${used}/${budget} calls since midnight Pacific)` };
+  }
   const retryAfterMs = runOptions.retryFailed ? 0 : (options.retryAfterMs ?? DEFAULT_RETRY_AFTER_MS);
-  const candidates = storiesNeedingSummary(db, now(), retryAfterMs, options.maxPerRun);
+  const limit = Math.min(options.maxPerRun, budget - used);
+  const candidates = storiesNeedingSummary(db, now(), retryAfterMs, limit, options.minArticles ?? 1);
   result.candidates = candidates.length;
 
   const loadArticles = db.prepare(`
@@ -155,6 +186,10 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
   let consecutiveTransient = 0;
 
   for (const [index, story] of candidates.entries()) {
+    if (used >= budget) {
+      result.stoppedEarly = `daily AI budget used (${used}/${budget} calls since midnight Pacific)`;
+      break;
+    }
     if (index > 0) await sleep(options.minIntervalMs);
     const rows = loadArticles.all(story.id, retentionCutoffIso(now())) as unknown as ArticleRow[];
     if (rows.length === 0) continue;
@@ -176,9 +211,12 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
     try {
       let response;
       try {
+        used++;
         response = await client.generate(request);
       } catch (err) {
-        if (!(err instanceof ModelError && err.transient)) throw err;
+        // Retry temporary trouble once, but never past the daily budget.
+        if (!(err instanceof ModelError && err.transient) || used >= budget) throw err;
+        used++;
         // Temporary provider trouble: log this attempt, wait, and try once more.
         logCall.run(story.id, startedAt, Date.now() - t0, modelName, PROMPT_VERSION, story.articles_hash, chosen.length, 0,
           `${err.message.slice(0, 450)} (retrying)`, null, null);

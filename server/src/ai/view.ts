@@ -22,7 +22,8 @@ export interface SummaryRow {
   last_error_retryable: number;
 }
 
-export type AiStatus = "ready" | "outdated" | "pending" | "failed";
+/** not_available = the story is outside the AI quota policy (too few articles); nothing will be generated for it. */
+export type AiStatus = "ready" | "outdated" | "pending" | "failed" | "not_available";
 
 export interface AiView {
   status: AiStatus;
@@ -44,7 +45,7 @@ export interface AiView {
   } | null;
 }
 
-function noContent(status: "pending" | "failed", message: string): AiView {
+function noContent(status: "pending" | "failed" | "not_available", message: string): AiView {
   return {
     status,
     message,
@@ -62,11 +63,21 @@ function noContent(status: "pending" | "failed", message: string): AiView {
   };
 }
 
-export function aiView(row: SummaryRow | undefined, currentArticleIds: string[], articlesHash: string): AiView {
+export function aiView(
+  row: SummaryRow | undefined,
+  currentArticleIds: string[],
+  articlesHash: string,
+  minArticles = 1,
+): AiView {
   const current = new Set(currentArticleIds);
   const failedNow = !!row?.last_error && row.last_attempt_hash === articlesHash;
   const unavailable = (): AiView =>
-    !failedNow
+    currentArticleIds.length < minArticles
+      ? noContent(
+          "not_available",
+          `To stay within the free AI quota, AI analysis is only generated for stories covered by at least ${minArticles} articles. Read the original coverage below.`,
+        )
+      : !failedNow
       ? noContent("pending", "AI analysis has not been generated for the current coverage yet.")
       : row?.last_error_retryable
         ? noContent("failed", "AI analysis is temporarily unavailable because the AI service was busy. It will be retried automatically. The original coverage is still available.")

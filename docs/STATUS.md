@@ -92,7 +92,8 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 ### 5. AI summaries and perspectives (server)
 - [x] Provider: Google Gemini free tier. Key is in the VM's `server/.env` as `GEMINI_API_KEY`.
 - [x] Prompt, model config, Gemini client, validation, summarizer job, storage and `ai` field on `GET /stories/:id` ([ai.md](ai.md)). 14 tests with a fake model, 56 total.
-- [ ] Deploy and confirm the live model works. Check `/admin/ai-calls` for errors such as the wrong model name or quota.
+- [x] Deployed. `gemini-3.8-flash` works: 11 live summaries generated October 20. Fixed along the way: the old model returned 404, there were 503 overload errors and timeouts, and the free quota (20/day) ran out.
+- [ ] Deploy the daily budget (10 calls/day, stories with 2+ articles, 2 per run). Confirm multi-publisher stories get summaries after the quota resets at 07:00 UTC on October 21.
 - [ ] Manually review 3 summaries against their inputs, fix any unsupported claims, and record the results in ai.md.
 - [ ] Find 3+ stories with real contrasting perspectives for the demo.
 

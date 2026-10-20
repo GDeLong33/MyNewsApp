@@ -11,13 +11,15 @@ export interface AppOptions {
   adminToken?: string;
   /** Clock for retention filtering; injectable for tests. */
   now?: () => Date;
+  /** Stories with fewer articles show AI status "not_available" (must match the summarizer's minArticles). */
+  aiMinArticles?: number;
 }
 
 export function createApp(db: Db, options: AppOptions = {}) {
   const app = express();
   app.disable("x-powered-by");
 
-  app.use(storiesRouter(db, options.now ?? (() => new Date())));
+  app.use(storiesRouter(db, options.now ?? (() => new Date()), options.aiMinArticles));
 
   app.get("/health", (_req, res) => {
     const time = new Date().toISOString();

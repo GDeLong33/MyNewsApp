@@ -20,15 +20,19 @@ const summarizer = createSummarizer(db, {
   client: config.geminiApiKey ? new GeminiClient(config.geminiApiKey, modelConfig) : null,
   maxPerRun: config.aiMaxPerRun,
   minIntervalMs: config.aiMinIntervalMs,
+  dailyBudget: config.aiDailyBudget,
+  minArticles: config.aiMinArticles,
   publishers: [...new Set(FEEDS.map((f) => f.publisher))],
 });
 
-const server = createApp(db, { collector, summarizer, adminToken: config.adminToken }).listen(config.port, "0.0.0.0", () => {
+const app = createApp(db, { collector, summarizer, adminToken: config.adminToken, aiMinArticles: config.aiMinArticles });
+const server = app.listen(config.port, "0.0.0.0", () => {
   console.log(`My News server listening on :${config.port} (db: ${config.databasePath})`);
   if (!config.adminToken) console.warn("ADMIN_TOKEN is not set: /admin endpoints are disabled");
   console.log(
     config.geminiApiKey
-      ? `AI summaries: ${modelConfig.model}, up to ${config.aiMaxPerRun} per run, ${config.aiMinIntervalMs} ms apart`
+      ? `AI summaries: ${modelConfig.model}, budget ${config.aiDailyBudget} calls/day, up to ${config.aiMaxPerRun} per run, ` +
+          `stories with ${config.aiMinArticles}+ articles`
       : "GEMINI_API_KEY is not set: AI summaries are disabled and stories will show 'pending'",
   );
 });

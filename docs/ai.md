@@ -78,6 +78,7 @@ Anything dropped is recorded in that call's `ai_calls.error` field for review.
   | `outdated` | New articles joined since generation, but every input article is still current | Yes, flagged ("does not yet include N newer articles") |
   | `pending` | No summary yet, or an input article has expired or left the story | **No.** A summary that depends on a removed article is never served, even between runs. |
   | `failed` | The last attempt for the current inputs failed | **No**, honest message; original sources stay available |
+  | `not_available` | The story has fewer articles than `AI_MIN_ARTICLES` and no summary | **No.** The message explains the quota policy. |
 
 ## Failure handling
 
@@ -96,12 +97,18 @@ Anything dropped is recorded in that call's `ai_calls.error` field for review.
 ## Quotas and cost
 
 - **Cost:** $0 on the free tier.
-- **Free-tier limits** are per model, set by Google, and change over time. Check [Google's rate-limit page](https://ai.google.dev/gemini-api/docs/rate-limits).
-- **Pacing to stay under them:**
-  - at most `AI_MAX_PER_RUN` = 20 stories per hourly run (480 per day at most), and
-  - `AI_MIN_INTERVAL_MS` = 6,500 ms between calls (about 9 per minute).
-- After the first backlog, most hours only need summaries for new or changed stories.
-- If the daily limit is hit, remaining stories show `pending` until the quota resets.
+- **Free-tier limit:** **20 requests per day** for `gemini-3.8-flash`, per the project's usage page at ai.dev/rate-limit on October 20, 2026. It resets at midnight Pacific time. The quota ran out on the first day after about 20 real calls, partly spent on single-source stories.
+- **The server's own budget, to stay inside that limit:**
+
+  | Setting | Default | Effect |
+  |---|---|---|
+  | `AI_DAILY_BUDGET` | 10 | At most 10 model calls per quota day (midnight to midnight Pacific), **retries included**. Leaves half the free quota spare for manual tests. |
+  | `AI_MIN_ARTICLES` | 2 | Only stories with 2+ current articles are summarized. Single-source stories without a summary show status `not_available`, explaining that AI analysis is reserved for multi-article stories to stay within the free quota. |
+  | `AI_MAX_PER_RUN` | 2 | At most 2 stories per hourly run, so the budget lasts through the day instead of being spent at the reset. |
+  | `AI_MIN_INTERVAL_MS` | 6,500 | Gap between calls |
+
+- **Priority order:** multi-publisher stories first, then larger, then newer. New articles joining a story, or an expiry, also cost a call to regenerate. On a busy news day, some multi-article stories may wait until the next day and show `pending` until then.
+- When the budget or Google's quota runs out, the batch stops cleanly (`stoppedEarly` says why). Stories keep any summary they already have.
 - **Data use:** Google may use free-tier prompts and responses to improve its products. Our inputs are public headlines and feed excerpts, so this was judged acceptable. A paid tier would avoid it.
 
 ## Admin endpoints

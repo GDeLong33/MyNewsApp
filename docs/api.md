@@ -88,7 +88,14 @@ The detail response also includes `ai`, the stored AI analysis. See [ai.md](ai.m
 }
 ```
 
-- `status` is one of `ready`, `outdated` (shown, but flagged as missing newer articles), `pending` (none yet, or it depended on an expired article) or `failed`. For `pending` and `failed`, `overview` is `null` and `perspectives` is `null`. Show `message` instead.
+- `status` is one of:
+  - `ready`
+  - `outdated`: shown, but flagged as missing newer articles
+  - `pending`: none yet, or it depended on an expired article
+  - `failed`
+  - `not_available`: single-source story outside the free-quota policy
+
+  For `pending`, `failed` and `not_available`, `overview` and `perspectives` are `null`. Show `message` instead.
 - `citations` are article `id`s from `sources[].articles[]`.
 - When `perspectives.status` is `insufficient_evidence`, `items` is empty and `message` is "Insufficient evidence for distinct perspectives."
 
