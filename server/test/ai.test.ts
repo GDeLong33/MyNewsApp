@@ -279,6 +279,61 @@ test("a configuration error stops the batch, and retryFailed skips the back-off 
   assert.equal(Number(missing.n), 0);
 });
 
+const rally: FixtureItem = {
+  title: "Trump rallies supporters in Pennsylvania ahead of midterm elections",
+  link: "https://www.npr.org/2026/10/20/trump-rally-erie",
+  description: "President Trump held a rally in Erie, Pennsylvania, urging supporters to vote in the midterms.",
+  pubDate: hoursBefore(NOW, 2),
+};
+const floods: FixtureItem = {
+  title: "Floods displace thousands in northern Nigeria after river bursts its banks",
+  link: "https://www.bbc.co.uk/news/articles/nigeria-floods",
+  description: "Heavy rain caused the Niger River to overflow near Kano, forcing thousands from their homes.",
+  pubDate: hoursBefore(NOW, 1),
+};
+
+test("a temporary provider error is retried once in the same batch", async () => {
+  let calls = 0;
+  const model = new FakeModel((req) => (++calls === 1 ? new ModelError("unavailable", "Gemini returned HTTP 503: high demand") : goodOutput(req)));
+  const { db, collector, summarizer } = setup({ [FOX.url]: [tariffs], [NPR.url]: [], [BBC.url]: [] }, model);
+  await collector.run("manual");
+  const result = await summarizer.run();
+  assert.equal(result.generated, 1);
+  assert.equal(result.failed, 0);
+  const log = db.prepare("SELECT ok, error FROM ai_calls ORDER BY id").all() as { ok: number; error: string | null }[];
+  assert.equal(log.length, 2, "both attempts are logged");
+  assert.match(log[0].error!, /503.*retrying/);
+  assert.equal(log[1].ok, 1);
+});
+
+test("a story that stays temporarily unavailable says so and is retried next run without the back-off", async () => {
+  const model = new FakeModel(() => new ModelError("timeout", "model request timed out after 120000 ms"));
+  const { db, collector, summarizer } = setup({ [FOX.url]: [tariffs], [NPR.url]: [], [BBC.url]: [] }, model);
+  await collector.run("manual");
+  assert.equal((await summarizer.run()).failed, 1);
+  assert.equal(model.calls.length, 2);
+
+  const ai = (await getStory(db, storyOf(db, tariffs.link!), NOW)).body.ai;
+  assert.equal(ai.status, "failed");
+  assert.match(ai.message, /temporarily unavailable.*retried automatically/);
+
+  model.setResponder(goodOutput);
+  assert.equal((await summarizer.run()).generated, 1, "retried on the next run, no 2-hour wait");
+});
+
+test("several stories in a row hitting an overloaded model stop the batch", async () => {
+  const model = new FakeModel(() => new ModelError("unavailable", "Gemini returned HTTP 503"));
+  const { collector, summarizer } = setup(
+    { [FOX.url]: [ebolaFox, tariffs], [NPR.url]: [ebolaNpr, rally], [BBC.url]: [ebolaBbc, floods] },
+    model,
+  );
+  await collector.run("manual");
+  const result = await summarizer.run();
+  assert.equal(result.candidates, 4);
+  assert.equal(result.attempted, 3);
+  assert.match(result.stoppedEarly!, /unavailable for 3 stories in a row/);
+});
+
 test("without an API key nothing is generated and the API says pending", async () => {
   const { db, collector, summarizer } = setup({ [FOX.url]: [tariffs], [NPR.url]: [], [BBC.url]: [] }, null);
   await collector.run("manual");
@@ -387,7 +442,8 @@ test("the Gemini client sends the key in a header, parses JSON text, and classif
     [429, { error: { message: "quota" } }, "rate_limited"],
     [404, { error: { message: "model is no longer available" } }, "config"],
     [403, {}, "config"],
-    [500, {}, "http"],
+    [503, { error: { message: "high demand" } }, "unavailable"],
+    [501, {}, "http"],
     [200, { promptFeedback: { blockReason: "SAFETY" } }, "blocked"],
     [200, { candidates: [{ content: { parts: [{ text: '{"a":' }] }, finishReason: "MAX_TOKENS" }] }, "truncated"],
     [200, { candidates: [] }, "empty"],

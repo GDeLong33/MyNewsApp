@@ -154,4 +154,12 @@ export const migrations: Migration[] = [
       CREATE INDEX idx_ai_calls_started_at ON ai_calls(started_at);
     `,
   },
+  {
+    id: 5,
+    name: "summary_retryable_errors",
+    sql: `
+      -- 1 when the last failure was temporary provider trouble (overload, timeout): retried next run, no back-off.
+      ALTER TABLE story_summaries ADD COLUMN last_error_retryable INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];

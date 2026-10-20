@@ -19,6 +19,7 @@ export interface SummaryRow {
   last_attempt_at: string | null;
   last_attempt_hash: string | null;
   last_error: string | null;
+  last_error_retryable: number;
 }
 
 export type AiStatus = "ready" | "outdated" | "pending" | "failed";
@@ -65,9 +66,11 @@ export function aiView(row: SummaryRow | undefined, currentArticleIds: string[],
   const current = new Set(currentArticleIds);
   const failedNow = !!row?.last_error && row.last_attempt_hash === articlesHash;
   const unavailable = (): AiView =>
-    failedNow
-      ? noContent("failed", "AI analysis could not be generated. The original coverage is still available.")
-      : noContent("pending", "AI analysis has not been generated for the current coverage yet.");
+    !failedNow
+      ? noContent("pending", "AI analysis has not been generated for the current coverage yet.")
+      : row?.last_error_retryable
+        ? noContent("failed", "AI analysis is temporarily unavailable because the AI service was busy. It will be retried automatically. The original coverage is still available.")
+        : noContent("failed", "AI analysis could not be generated. The original coverage is still available.");
 
   if (!row?.content_json) return unavailable();
 

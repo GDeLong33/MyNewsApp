@@ -82,7 +82,13 @@ Anything dropped is recorded in that call's `ai_calls.error` field for review.
 ## Failure handling
 
 - A model error is recorded against that story (`last_error`) and in `ai_calls`. Errors include timeouts, HTTP errors, rate limits, blocked output, truncated output and invalid output. **A failure never erases an earlier successful summary.**
-- A story whose current inputs failed isn't retried for 2 hours.
+- **Temporary provider trouble** means HTTP 500/502/503/504 (Gemini answered "model is currently experiencing high demand" several times on October 20), a timeout, or a network error. It's handled like this:
+  - retried once after 15 seconds in the same batch;
+  - if it still fails, the story is marked `failed`, with the message that the AI service was busy and it will be retried automatically;
+  - it's retried on the next run, with no back-off;
+  - after 3 stories in a row fail this way, the batch stops.
+- The request timeout is 120 seconds. Live calls took 8–55 seconds, and the original 60-second limit caused timeouts.
+- Any other failure, such as invalid or untraceable output or blocked output, waits 2 hours before the same inputs are retried.
 - A rate-limit response (HTTP 429) stops the batch right away. The remaining stories wait for the next hourly run.
 - A configuration error (HTTP 400/401/403/404, such as a bad key or an unknown model) also stops the batch after one call.
 - Without `GEMINI_API_KEY`, the summarizer does nothing and stories show `pending`. Collection, grouping and the API work normally.

@@ -10,8 +10,10 @@ export interface SummarizerOptions {
   maxPerRun: number;
   /** Minimum gap between model calls, to stay under the provider's requests-per-minute limit. */
   minIntervalMs: number;
-  /** Wait this long before retrying a story whose same inputs already failed. */
+  /** Wait this long before retrying a story whose same inputs already failed (not for temporary provider errors). */
   retryAfterMs?: number;
+  /** Pause before the single in-batch retry of a temporary provider error (overload, timeout). */
+  transientRetryDelayMs?: number;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
   publishers: string[];
@@ -45,6 +47,9 @@ export interface Summarizer {
 /** Articles sent per story; one per publisher first, then the newest others. */
 const MAX_PROMPT_ARTICLES = 12;
 const DEFAULT_RETRY_AFTER_MS = 2 * 60 * 60 * 1000;
+const DEFAULT_TRANSIENT_RETRY_DELAY_MS = 15_000;
+/** Stop the batch after this many stories in a row fail with temporary provider errors (the service is struggling). */
+const MAX_CONSECUTIVE_TRANSIENT = 3;
 
 interface CandidateRow {
   id: string;
@@ -87,7 +92,8 @@ export function storiesNeedingSummary(db: Db, now: Date, retryAfterMs: number, l
       FROM stories s LEFT JOIN story_summaries m ON m.story_id = s.id
       WHERE s.updated_at >= ?
         AND (m.input_hash IS NULL OR m.input_hash != s.articles_hash)
-        AND NOT (m.last_error IS NOT NULL AND m.last_attempt_hash = s.articles_hash AND m.last_attempt_at > ?)
+        AND NOT (m.last_error IS NOT NULL AND m.last_error_retryable = 0
+                 AND m.last_attempt_hash = s.articles_hash AND m.last_attempt_at > ?)
       ORDER BY s.publisher_count DESC, s.article_count DESC, s.updated_at DESC, s.id
       LIMIT ?
     `)
@@ -134,14 +140,19 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
     ON CONFLICT(story_id) DO UPDATE SET content_json = excluded.content_json, input_hash = excluded.input_hash,
       input_article_ids = excluded.input_article_ids, excerpt_only = 1, model = excluded.model,
       prompt_version = excluded.prompt_version, generated_at = excluded.generated_at,
-      last_attempt_at = excluded.last_attempt_at, last_attempt_hash = excluded.last_attempt_hash, last_error = NULL
+      last_attempt_at = excluded.last_attempt_at, last_attempt_hash = excluded.last_attempt_hash, last_error = NULL,
+      last_error_retryable = 0
   `);
   // A failure records the attempt but leaves any earlier successful content in place.
   const saveFailure = db.prepare(`
-    INSERT INTO story_summaries (story_id, last_attempt_at, last_attempt_hash, last_error) VALUES (?, ?, ?, ?)
+    INSERT INTO story_summaries (story_id, last_attempt_at, last_attempt_hash, last_error, last_error_retryable)
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(story_id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at,
-      last_attempt_hash = excluded.last_attempt_hash, last_error = excluded.last_error
+      last_attempt_hash = excluded.last_attempt_hash, last_error = excluded.last_error,
+      last_error_retryable = excluded.last_error_retryable
   `);
+  const transientDelay = options.transientRetryDelayMs ?? DEFAULT_TRANSIENT_RETRY_DELAY_MS;
+  let consecutiveTransient = 0;
 
   for (const [index, story] of candidates.entries()) {
     if (index > 0) await sleep(options.minIntervalMs);
@@ -157,16 +168,25 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
     }));
 
     result.attempted++;
-    const startedAt = now().toISOString();
-    const t0 = Date.now();
+    let startedAt = now().toISOString();
+    let t0 = Date.now();
     let usage: { input: number | null; output: number | null } = { input: null, output: null };
     let modelName = client.model;
+    const request = { system: SYSTEM_PROMPT, user: buildUserPrompt(story.headline, promptArticles), schema: RESPONSE_SCHEMA };
     try {
-      const response = await client.generate({
-        system: SYSTEM_PROMPT,
-        user: buildUserPrompt(story.headline, promptArticles),
-        schema: RESPONSE_SCHEMA,
-      });
+      let response;
+      try {
+        response = await client.generate(request);
+      } catch (err) {
+        if (!(err instanceof ModelError && err.transient)) throw err;
+        // Temporary provider trouble: log this attempt, wait, and try once more.
+        logCall.run(story.id, startedAt, Date.now() - t0, modelName, PROMPT_VERSION, story.articles_hash, chosen.length, 0,
+          `${err.message.slice(0, 450)} (retrying)`, null, null);
+        await sleep(transientDelay);
+        startedAt = now().toISOString();
+        t0 = Date.now();
+        response = await client.generate(request);
+      }
       usage = { input: response.inputTokens, output: response.outputTokens };
       modelName = response.model;
       const analysis = validateAnalysis(
@@ -183,11 +203,13 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
       logCall.run(story.id, startedAt, Date.now() - t0, modelName, PROMPT_VERSION, story.articles_hash, chosen.length, 1,
         dropped.length ? `validation dropped: ${dropped.join("; ").slice(0, 500)}` : null, usage.input, usage.output);
       result.generated++;
+      consecutiveTransient = 0;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const retryable = err instanceof ModelError && err.transient;
       result.failed++;
       try {
-        saveFailure.run(story.id, now().toISOString(), story.articles_hash, message.slice(0, 500));
+        saveFailure.run(story.id, now().toISOString(), story.articles_hash, message.slice(0, 500), retryable ? 1 : 0);
       } catch {
         // The story was deleted by a collection run while the model was working; nothing to record against.
       }
@@ -199,6 +221,11 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
       }
       if (err instanceof ModelError && err.kind === "config") {
         result.stoppedEarly = `configuration error, stopping until it is fixed: ${message.slice(0, 200)}`;
+        break;
+      }
+      consecutiveTransient = retryable ? consecutiveTransient + 1 : 0;
+      if (consecutiveTransient >= MAX_CONSECUTIVE_TRANSIENT) {
+        result.stoppedEarly = `model unavailable for ${consecutiveTransient} stories in a row; remaining stories wait for the next run`;
         break;
       }
       if (!(err instanceof ModelError) && !(err instanceof InvalidOutputError)) console.error("summarizer error", err);

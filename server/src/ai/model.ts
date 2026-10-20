@@ -17,7 +17,8 @@ export const DEFAULT_MODEL_CONFIG: ModelConfig = {
   model: "gemini-3.8-flash",
   temperature: 0.2,
   maxOutputTokens: 4096,
-  timeoutMs: 60_000,
+  // Live calls to gemini-3.8-flash took 8-55 s on 2026-10-20; 60 s caused timeouts.
+  timeoutMs: 120_000,
 };
 
 /**
@@ -27,6 +28,7 @@ export const DEFAULT_MODEL_CONFIG: ModelConfig = {
 export type ModelErrorKind =
   | "rate_limited"
   | "config"
+  | "unavailable"
   | "http"
   | "blocked"
   | "truncated"
@@ -40,6 +42,11 @@ export class ModelError extends Error {
     message: string,
   ) {
     super(message);
+  }
+
+  /** Temporary provider trouble (overload, server error, timeout, network): worth retrying soon. */
+  get transient(): boolean {
+    return this.kind === "unavailable" || this.kind === "timeout" || this.kind === "network";
   }
 }
 
@@ -106,6 +113,9 @@ export class GeminiClient implements ModelClient {
       if (res.status === 429) throw new ModelError("rate_limited", `rate limited by Gemini (HTTP 429)${detail}`);
       if ([400, 401, 403, 404].includes(res.status)) {
         throw new ModelError("config", `Gemini returned HTTP ${res.status}${detail}`);
+      }
+      if ([500, 502, 503, 504].includes(res.status)) {
+        throw new ModelError("unavailable", `Gemini returned HTTP ${res.status}${detail}`);
       }
       throw new ModelError("http", `Gemini returned HTTP ${res.status}${detail}`);
     }
