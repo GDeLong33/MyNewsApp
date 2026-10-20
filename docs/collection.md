@@ -99,6 +99,6 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" https://163-192-125-189.ssl
 curl -H "Authorization: Bearer $ADMIN_TOKEN" https://163-192-125-189.sslip.io/admin/runs
 ```
 
-## Not handled yet
+## Expiry
 
-Expired articles are skipped at ingestion, but **deleting** articles that age past 168 hours, and filtering them out of the API between runs, are part of the next step: retention and cleanup.
+After each run's feeds are stored, articles published more than 168 hours ago are deleted. This happens even when every feed failed. Then stories are regrouped and cleaned up. Between runs, the public API applies the same cutoff when each request comes in. Details are in [grouping.md](grouping.md#expiry-and-cleanup).

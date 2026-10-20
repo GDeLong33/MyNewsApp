@@ -1,4 +1,6 @@
 import { transaction, type Db } from "../db.js";
+import { RETENTION_MS } from "../retention.js";
+import { processStories, type StoryStats } from "../stories/process.js";
 import { articleIdFor, cleanText, normalizeUrl, parsePublishedDate } from "./normalize.js";
 import { parseFeed } from "./parse.js";
 
@@ -46,6 +48,9 @@ export interface RunSummary {
   updated: number;
   unchanged: number;
   skipped: number;
+  /** Expiry and grouping results; null if story processing failed (see error). */
+  stories: StoryStats | null;
+  error: string | null;
   feeds: FeedResult[];
 }
 
@@ -60,7 +65,6 @@ export interface Collector {
   run(trigger: Trigger): Promise<RunSummary>;
 }
 
-export const RETENTION_MS = 168 * 60 * 60 * 1000;
 const USER_AGENT = "MyNewsBot/0.1 (CS 403 class project; RSS reader)";
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -79,6 +83,14 @@ export function createCollector(db: Db, options: CollectorOptions): Collector {
       return active;
     },
   };
+}
+
+/** Start time of the latest run in which at least one feed succeeded and stories were processed. */
+export function lastSuccessfulCollectionAt(db: Db): string | null {
+  const row = db
+    .prepare("SELECT MAX(started_at) AS at FROM job_runs WHERE outcome IN ('success', 'partial')")
+    .get() as { at: string | null };
+  return row.at;
 }
 
 /** Runs left as 'running' were cut off by a crash or restart. Call once at startup. */
@@ -141,11 +153,23 @@ async function runOnce(db: Db, options: CollectorOptions, trigger: Trigger): Pro
     const runNow = now();
     const feeds = fetched.map((f) => ingestFeed(db, f, runNow));
 
+    // Expiry and grouping run even when every feed failed, so old articles still leave on schedule.
+    let stories: StoryStats | null = null;
+    let processingError: string | null = null;
+    try {
+      stories = processStories(db, runNow);
+    } catch (err) {
+      processingError = `story processing failed: ${errorMessage(err)}`;
+      console.error(processingError, err);
+    }
+
     const sum = (key: "itemsSeen" | "inserted" | "updated" | "unchanged" | "skipped") =>
       feeds.reduce((total, f) => total + f[key], 0);
     const feedsOk = feeds.filter((f) => f.ok).length;
     const feedsFailed = feeds.length - feedsOk;
-    const outcome = feedsFailed === 0 ? "success" : feedsOk === 0 ? "failed" : "partial";
+    const outcome =
+      processingError || feedsOk === 0 ? "failed" : feedsFailed === 0 ? "success" : "partial";
+    const error = processingError ?? (feedsOk === 0 ? "all feeds failed" : null);
     const finishedAt = now().toISOString();
 
     const summary: RunSummary = {
@@ -161,6 +185,8 @@ async function runOnce(db: Db, options: CollectorOptions, trigger: Trigger): Pro
       updated: sum("updated"),
       unchanged: sum("unchanged"),
       skipped: sum("skipped"),
+      stories,
+      error,
       feeds,
     };
 
@@ -178,18 +204,24 @@ async function runOnce(db: Db, options: CollectorOptions, trigger: Trigger): Pro
       }
       db.prepare(`
         UPDATE job_runs SET finished_at = ?, outcome = ?, feeds_ok = ?, feeds_failed = ?, items_seen = ?,
-          articles_inserted = ?, articles_updated = ?, articles_unchanged = ?, items_skipped = ?, error = ?
+          articles_inserted = ?, articles_updated = ?, articles_unchanged = ?, items_skipped = ?,
+          articles_expired = ?, stories_created = ?, articles_joined = ?, stories_removed = ?, error = ?
         WHERE id = ?
       `).run(
         finishedAt, outcome, feedsOk, feedsFailed, summary.itemsSeen, summary.inserted,
         summary.updated, summary.unchanged, summary.skipped,
-        outcome === "failed" ? "all feeds failed" : null, runId,
+        stories?.articlesExpired ?? 0, stories?.storiesCreated ?? 0, stories?.articlesJoined ?? 0,
+        stories?.storiesRemoved ?? 0, error, runId,
       );
     });
 
     console.log(
       `collection run ${runId} (${trigger}): ${outcome}, ${feedsOk}/${feeds.length} feeds ok, ` +
-        `${summary.inserted} new, ${summary.updated} updated, ${summary.unchanged} unchanged, ${summary.skipped} skipped`,
+        `${summary.inserted} new, ${summary.updated} updated, ${summary.unchanged} unchanged, ${summary.skipped} skipped; ` +
+        (stories
+          ? `${stories.articlesExpired} expired, ${stories.storiesCreated} stories created, ` +
+            `${stories.articlesJoined} joined existing, ${stories.storiesRemoved} stories removed`
+          : (error ?? "")),
     );
     return summary;
   } catch (err) {

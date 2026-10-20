@@ -1,0 +1,76 @@
+# API
+
+**Base URL:** `https://163-192-125-189.sslip.io`
+
+All responses are JSON, and all timestamps are ISO 8601 UTC. The public endpoints only read stored results. They never fetch news or call an AI model.
+
+## Public
+
+### `GET /health`
+Returns server and database status: `{"status":"ok","time":…,"database":{"ok":true,"bootCount":…,"firstBootAt":…,"lastBootAt":…}}`.
+
+### `GET /stories?limit=50`
+Top stories, newest coverage first. There is one entry per story. Only articles from the last 168 hours count, checked at request time. `limit` can be 1–200.
+
+```json
+{
+  "generatedAt": "2026-10-20T23:10:00.000Z",
+  "lastSuccessfulCollectionAt": "2026-10-20T23:00:00.104Z",
+  "retentionHours": 168,
+  "stories": [
+    {
+      "id": "s_4f1c0a9b2e7d3c5a8b6e0f12",
+      "headline": "Alberta voters decide whether to take a step toward separating from Canada",
+      "updatedAt": "2026-10-20T21:14:03.000Z",
+      "articleCount": 4,
+      "publisherCount": 3,
+      "publishers": ["BBC News", "Fox News", "NPR"]
+    }
+  ]
+}
+```
+
+### `GET /stories/{id}`
+One story, with its current articles grouped by publisher. Each publisher becomes one "Original coverage" button. Returns `404 {"error":"not_found"}` if the story doesn't exist or all of its articles have expired.
+
+```json
+{
+  "id": "s_4f1c0a9b2e7d3c5a8b6e0f12",
+  "headline": "Alberta voters decide whether to take a step toward separating from Canada",
+  "createdAt": "2026-10-20T22:33:05.001Z",
+  "updatedAt": "2026-10-20T21:14:03.000Z",
+  "articleCount": 4,
+  "publisherCount": 3,
+  "lastSuccessfulCollectionAt": "2026-10-20T23:00:00.104Z",
+  "sources": [
+    {
+      "publisher": "BBC News",
+      "articles": [
+        {
+          "id": "9c0e…",
+          "title": "'Great result for Canada', says Carney as Alberta votes to reject separatism",
+          "url": "https://www.bbc.co.uk/news/articles/…",
+          "excerpt": "Feed description text (an excerpt, not the full article).",
+          "publishedAt": "2026-10-20T21:14:03.000Z",
+          "publishedAtEstimated": false,
+          "grouping": { "matchedArticleId": "…", "score": 0.378, "sharedConcepts": ["alberta", "canada", "carney"] }
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `publishedAtEstimated: true` means the feed gave no valid date, so the first-seen time is used. See [collection.md](collection.md).
+- `grouping` explains why the article joined the story. It is `null` for the article that founded the story. See [grouping.md](grouping.md).
+- AI overview and perspectives fields will be added in the AI step.
+
+## Admin
+
+Admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>`. They're described in [collection.md](collection.md#admin-endpoints).
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /admin/collect` | Run a collection now, including expiry and grouping. |
+| `GET /admin/runs` | Job log with per-feed results. Each run also records `articles_expired`, `stories_created`, `articles_joined` and `stories_removed`. |
+| `GET /admin/articles` | Raw stored articles. |

@@ -21,8 +21,8 @@ RSS feeds ──► hourly worker ──► SQLite (on VM disk) ──► API (/
 | Area | Rubric points | Status |
 |---|---|---|
 | Deployed backend, persistent storage, API, server/client split | 15 | Partly done: deployed with `/health` only, no story API yet |
-| Three-publisher ingestion, hourly schedule, dedupe, 7-day retention | 20 | Mostly done: collector, dedupe, hourly job, manual trigger and job log built and tested; retention deletion still to do |
-| Automatic story grouping | 15 | Not started |
+| Three-publisher ingestion, hourly schedule, dedupe, 7-day retention | 20 | Done in code and tested; expiry needs deploying; hourly run records still to collect |
+| Automatic story grouping | 15 | Done in code and tested on live data (9 multi-publisher stories); needs deploying |
 | Flutter list, detail, buttons, usability, beta readiness | 20 | Not started: default `flutter create` scaffold only |
 | Grounded AI summaries, perspectives, attribution, shared reuse | 20 | Not started, and no AI provider chosen yet |
 | Verification evidence, docs, demo, AI reflection | 10 | Partly done: spec copy, CLAUDE.md, deploy guide |
@@ -51,7 +51,17 @@ RSS feeds ──► hourly worker ──► SQLite (on VM disk) ──► API (/
   - `job_runs` and `job_feed_results` tables. Each feed is fetched and written separately, so one failed feed gives a `partial` run instead of a crash.
   - 29 passing tests covering dedupe, date rules, failure isolation, timeouts, overlapping runs and admin auth.
   - Tested locally against the live feeds: 151 articles on the first run; the second run found 0 new and 168 unchanged.
-  - **Not yet deployed to the VM.** Needs a commit, push, redeploy, and `ADMIN_TOKEN` added to the VM's `.env`.
+  - **Deployed to the VM on October 20.** The startup run (#1) stored 152 articles: 70 Fox, 57 BBC, 25 NPR. The manual run (#2) found 0 new and 168 unchanged, with all 8 feeds OK.
+
+- [x] Expiry, grouping, cleanup and the stories API ([grouping.md](grouping.md), [api.md](api.md)):
+  - 168-hour expiry by publication time on every run, even when all feeds fail. The API applies the same cutoff at request time between runs.
+  - Grouping uses TF-IDF similarity plus at least 2 shared concepts, with names counted once and job titles ignored. A strict-majority check stops chaining. Thresholds were tuned on live data.
+  - Stable story IDs (`s_<founding article id>`). New coverage joins existing stories. Single-source stories are kept.
+  - Empty stories are deleted, and their summaries go with them (cascade). Stories that lose a source get a new `articles_hash`, so old summaries become stale.
+  - `GET /stories` and `GET /stories/:id` (public, read-only).
+  - 42 tests pass, including two related-but-separate cases (same person, same country) and a chaining case.
+  - Local live run: 153 articles became 121 stories, 9 of them with 2–3 publishers.
+  - **Not yet deployed.**
 
 ## Still to do
 
@@ -62,20 +72,18 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 - [x] Fetch, parse and normalize RSS/Atom; dedupe by normalized URL.
 - [x] Hourly schedule, protected manual trigger, job log, per-feed failure isolation.
 - [x] Date rule for missing or invalid dates documented in [collection.md](collection.md).
-- [ ] **Deploy the collector:** commit, push, add `ADMIN_TOKEN` to the VM's `.env`, rebuild. Then check that the hourly runs appear in `/admin/runs`.
-- [ ] 7-day retention: delete articles older than 168 hours on each run, and filter them out of the API between runs. Test with controlled timestamps.
-- [ ] Cleanup: delete empty stories along with their summaries and background links. Mark summaries stale when their source articles expire. (Needs stories, so this comes with step 2.)
+- [x] Collector deployed. Manual trigger and job log confirmed on the live URL.
+- [ ] Confirm the hourly `schedule` runs appear in `/admin/runs` at :00 UTC. Two in a row are needed for the verification table.
+- [x] 7-day retention and cleanup, tested with controlled timestamps.
 
 ### 2. Story grouping (server)
-- [ ] Group articles from different publishers about the same event: title/text similarity plus shared named entities plus a time window. One shared keyword is not enough.
-- [ ] Stable story IDs, a readable headline, an updated time, and an accurate publisher count. Single-source stories are kept.
-- [ ] New articles join existing stories instead of creating duplicates.
-- [ ] Collect evidence: 5+ multi-publisher groups and 2 related-but-separate examples. Document the method and one way it can fail.
+- [x] Grouping, stable IDs, single-source stories, new coverage joining, evidence and failure modes documented in [grouping.md](grouping.md).
+- [ ] Deploy, then re-check the groups on the VM's live data. Update the evidence table in grouping.md with the deployed results for the verification table.
 
 ### 3. Story API (server)
-- [ ] `GET /stories`: list, newest first, with headline, latest article time, publisher count, and last successful collection time.
-- [ ] `GET /stories/:id`: articles per publisher, background links, AI overview and perspectives with status and generation time.
-- [ ] Document the endpoints in the README.
+- [x] `GET /stories` and `GET /stories/:id`, documented in [api.md](api.md).
+- [ ] Add background links and AI fields to `GET /stories/:id` (steps 4–5).
+- [ ] Copy the API description into the final README.
 
 ### 4. Background resources (server)
 - [ ] Automatically find relevant links, for example by searching Wikipedia using the story's key entities. Store them per story.

@@ -1,16 +1,21 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import { adminRouter } from "./admin.js";
+import { storiesRouter } from "./api.js";
 import type { Collector } from "./collector/collect.js";
 import { bootStats, type Db } from "./db.js";
 
 export interface AppOptions {
   collector?: Collector;
   adminToken?: string;
+  /** Clock for retention filtering; injectable for tests. */
+  now?: () => Date;
 }
 
 export function createApp(db: Db, options: AppOptions = {}) {
   const app = express();
   app.disable("x-powered-by");
+
+  app.use(storiesRouter(db, options.now ?? (() => new Date())));
 
   app.get("/health", (_req, res) => {
     const time = new Date().toISOString();

@@ -77,4 +77,41 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 3,
+    name: "stories_and_retention",
+    sql: `
+      -- A story is one event; its articles point at it through articles.story_id.
+      CREATE TABLE stories (
+        id TEXT PRIMARY KEY,                -- 's_' + ID of the article that founded it; never changes
+        headline TEXT NOT NULL,             -- title of the most central member article
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,           -- latest publication time among its articles
+        article_count INTEGER NOT NULL,
+        publisher_count INTEGER NOT NULL,
+        articles_hash TEXT NOT NULL         -- fingerprint of member articles; summaries are current only if it matches
+      );
+      CREATE INDEX idx_stories_updated_at ON stories(updated_at);
+
+      ALTER TABLE articles ADD COLUMN story_id TEXT REFERENCES stories(id) ON DELETE SET NULL;
+      ALTER TABLE articles ADD COLUMN story_match_json TEXT;  -- why it joined: matched article, score, shared terms
+      CREATE INDEX idx_articles_story_id ON articles(story_id);
+
+      -- AI output per story (filled in by the AI step). Deleted with its story.
+      CREATE TABLE story_summaries (
+        story_id TEXT PRIMARY KEY REFERENCES stories(id) ON DELETE CASCADE,
+        input_hash TEXT NOT NULL,           -- stories.articles_hash it was generated from
+        status TEXT NOT NULL,               -- ready | failed
+        content_json TEXT,
+        model TEXT,
+        generated_at TEXT,
+        error TEXT
+      );
+
+      ALTER TABLE job_runs ADD COLUMN articles_expired INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE job_runs ADD COLUMN stories_created INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE job_runs ADD COLUMN articles_joined INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE job_runs ADD COLUMN stories_removed INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];

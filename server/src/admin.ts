@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { RunInProgressError, type Collector } from "./collector/collect.js";
+import { lastSuccessfulCollectionAt, RunInProgressError, type Collector } from "./collector/collect.js";
 import type { Db } from "./db.js";
 
 /** Bearer-token check for instructor/demo endpoints. Disabled entirely when no token is configured. */
@@ -49,11 +49,8 @@ export function adminRouter(db: Db, collector: Collector, adminToken: string | u
     const limit = limitParam(req.query.limit, 20, 200);
     const runs = db.prepare("SELECT * FROM job_runs ORDER BY id DESC LIMIT ?").all(limit) as { id: number }[];
     const feedRows = db.prepare("SELECT * FROM job_feed_results WHERE run_id = ? ORDER BY feed_id");
-    const lastSuccess = db
-      .prepare("SELECT MAX(started_at) AS at FROM job_runs WHERE outcome IN ('success', 'partial')")
-      .get() as { at: string | null };
     res.json({
-      lastSuccessfulCollectionAt: lastSuccess.at,
+      lastSuccessfulCollectionAt: lastSuccessfulCollectionAt(db),
       running: collector.running,
       runs: runs.map((run) => ({ ...run, feeds: feedRows.all(run.id) })),
     });
