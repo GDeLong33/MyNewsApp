@@ -2,6 +2,8 @@
 
 Guidance for Claude Code sessions in this repo. The full assignment text is in [docs/spec.md](docs/spec.md); read it when a detail matters. This file is the short version.
 
+**Current progress and the to-do list are in [docs/STATUS.md](docs/STATUS.md).** Read it at the start of a session and update it at the end.
+
 ## Project
 
 **My News** (CS 403): an AI-powered news service. Due **Friday, October 23, 2026, 11:59 p.m. Eastern**. The deliverable is a Flutter MVP ready for a limited commercial beta, demoed on a physical Android phone through Microsoft Phone Link.

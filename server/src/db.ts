@@ -30,19 +30,27 @@ function migrate(db: Db): void {
 
   for (const m of migrations) {
     if (applied.has(m.id)) continue;
-    db.exec("BEGIN");
-    try {
+    transaction(db, () => {
       db.exec(m.sql);
       db.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)").run(
         m.id,
         m.name,
         new Date().toISOString(),
       );
-      db.exec("COMMIT");
-    } catch (err) {
-      db.exec("ROLLBACK");
-      throw err;
-    }
+    });
+  }
+}
+
+/** Run fn inside a transaction; roll back and rethrow if it throws. */
+export function transaction<T>(db: Db, fn: () => T): T {
+  db.exec("BEGIN");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
   }
 }
 

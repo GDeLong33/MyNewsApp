@@ -81,6 +81,25 @@ nano .env          # set DOMAIN=<your hostname>; later, API keys go here too
 chmod 600 .env
 ```
 
+Set `ADMIN_TOKEN` to a random value (it protects the manual collect trigger and job log). The server ignores the example placeholder and any token shorter than 16 characters:
+
+```bash
+sed -i "s/^ADMIN_TOKEN=.*/ADMIN_TOKEN=$(openssl rand -hex 32)/" .env
+grep ADMIN_TOKEN .env      # keep this value private; you'll paste it into curl commands
+```
+
+## Trigger a collection and view the job log
+
+```bash
+cd ~/MyNewsApp/server
+TOKEN=$(grep ^ADMIN_TOKEN= .env | cut -d= -f2)
+curl -s -X POST -H "Authorization: Bearer $TOKEN" https://<DOMAIN>/admin/collect
+curl -s -H "Authorization: Bearer $TOKEN" https://<DOMAIN>/admin/runs
+curl -s -H "Authorization: Bearer $TOKEN" "https://<DOMAIN>/admin/articles?limit=5"
+```
+
+Collection also runs automatically at the top of every hour. See [collection.md](collection.md).
+
 ## Deploy
 
 ```bash
