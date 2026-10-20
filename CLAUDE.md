@@ -58,7 +58,9 @@ The server collects news from several publishers, groups articles about the same
 - `/flutter_application_1`: Flutter (Dart) client for Android, created by the user with `flutter create`. Keep this folder name.
 - `/docs`: spec and project documentation.
 
-AI provider and hosting provider are not chosen yet. Ask before picking them.
+Hosting: the user's Oracle Cloud Always Free VM (Ubuntu 20.04, ARM64), running Docker Compose with Caddy for HTTPS. See [docs/deploy.md](docs/deploy.md).
+
+The AI provider isn't chosen yet. Ask before picking one.
 
 ## Rules
 

@@ -1,0 +1,9 @@
+node_modules
+dist
+data
+test
+.env
+*.db
+*.db-*
+docker-compose.yml
+Caddyfile

@@ -1,0 +1,39 @@
+# Production stack for the Oracle Cloud VM: the API server behind Caddy (automatic HTTPS).
+# Run from the server/ directory:  docker compose up -d --build
+# Requires server/.env on the VM with DOMAIN set (see .env.example).
+
+services:
+  server:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8080"
+      DATABASE_PATH: /data/mynews.db
+    volumes:
+      # SQLite lives on the VM's disk (server/data/), so it survives restarts and rebuilds.
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2.8.4
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in server/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+
+volumes:
+  caddy_data:
+  caddy_config:
