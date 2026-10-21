@@ -464,6 +464,32 @@ test("validation never pads perspectives and rejects viewpoints named after outl
   assert.deepEqual(outlet.perspectives.map((p) => p.name), ["Health officials", "Residents"]);
 });
 
+test("validation removes prompt reference IDs that leaked into the text", () => {
+  const out = validateAnalysis(
+    JSON.stringify({
+      overview: { text: "Officials confirmed a case (A1). Lagos was named [A1, A2].", citations: ["A1", "A2"] },
+      agreement: [], disagreement: [], uncertainties: [], perspectivesStatus: "insufficient_evidence", perspectives: [],
+    }),
+    inputs,
+    PUBLISHERS,
+  );
+  assert.equal(out.overview.text, "Officials confirmed a case. Lagos was named.");
+  assert.ok(out.dropped.some((d) => d.includes("reference IDs removed")));
+});
+
+test("a new prompt version regenerates stored summaries on the next pass", async () => {
+  const model = new FakeModel();
+  const { db, collector, summarizer } = setup({ [FOX.url]: [ebolaFox], [NPR.url]: [ebolaNpr], [BBC.url]: [ebolaBbc] }, model);
+  await collector.run("manual");
+  await summarizer.run();
+  assert.equal((await summarizer.run()).candidates, 0);
+
+  db.prepare("UPDATE story_summaries SET prompt_version = 'older-prompt'").run();
+  const rerun = await summarizer.run();
+  assert.equal(rerun.generated, 1);
+  assert.equal(model.calls.length, 2);
+});
+
 test("validation keeps real quotes and strips quotation marks from invented ones", () => {
   const out = validateAnalysis(
     JSON.stringify({

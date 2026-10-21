@@ -103,7 +103,7 @@ export function storiesNeedingSummary(
       FROM stories s LEFT JOIN story_summaries m ON m.story_id = s.id
       WHERE s.updated_at >= ?
         AND s.article_count >= ?
-        AND (m.input_hash IS NULL OR m.input_hash != s.articles_hash)
+        AND (m.input_hash IS NULL OR m.input_hash != s.articles_hash OR m.prompt_version IS NOT ?)
         AND NOT (m.last_error IS NOT NULL AND m.last_error_retryable = 0
                  AND m.last_attempt_hash = s.articles_hash AND m.last_attempt_at > ?)
       ORDER BY s.publisher_count DESC, s.article_count DESC, s.updated_at DESC, s.id
@@ -112,6 +112,7 @@ export function storiesNeedingSummary(
     .all(
       retentionCutoffIso(now),
       minArticles,
+      PROMPT_VERSION,
       new Date(now.getTime() - retryAfterMs).toISOString(),
       limit,
     ) as unknown as CandidateRow[];

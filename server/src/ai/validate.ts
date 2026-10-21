@@ -75,9 +75,16 @@ export function validateAnalysis(raw: string, articles: InputArticle[], publishe
       return inner;
     });
 
+  // Prompt reference IDs ("(A1)", "[A2, A3]") belong in citations, not in reader-facing text.
+  const stripRefs = (text: string): string => {
+    const cleaned = text.replace(/\s*[([]\s*A\d+(?:\s*[,;]\s*A\d+)*\s*[)\]]/g, "");
+    if (cleaned !== text) dropped.push("prompt reference IDs removed from text");
+    return cleaned;
+  };
+
   const cited = (value: unknown, max: number, what: string): CitedText | null => {
     const obj = (value ?? {}) as Record<string, unknown>;
-    const text = unquoteInvented(str(obj.text, max));
+    const text = unquoteInvented(stripRefs(str(obj.text, max)));
     const cites = citations(obj.citations);
     if (!text) return null;
     if (cites.length === 0) {
@@ -101,7 +108,7 @@ export function validateAnalysis(raw: string, articles: InputArticle[], publishe
   for (const value of Array.isArray(data.perspectives) ? data.perspectives : []) {
     const obj = (value ?? {}) as Record<string, unknown>;
     const name = str(obj.name, 60);
-    const summary = unquoteInvented(str(obj.summary, 800));
+    const summary = unquoteInvented(stripRefs(str(obj.summary, 800)));
     const cites = citations(obj.citations);
     if (!name || !summary) continue;
     if (cites.length === 0) {

@@ -123,4 +123,39 @@ Anything dropped is recorded in that call's `ai_calls.error` field for review.
 
 ## Manual review of three summaries
 
-*To be completed against live output:* for three stories, compare each overview, point and perspective with the cited excerpts. Record unsupported claims, missing context and corrections made.
+Reviewed October 20, 2026 (about 10:30 p.m. Eastern) on the deployed server. Each statement was compared with the cited headlines and excerpts. Model: `gemini-3.5-flash-lite`, prompt version `2026-10-20.1`.
+
+### 1. Alberta referendum (`s_d59e3aee7e77424507d64f1c`): 5 articles, BBC News, Fox News, NPR
+
+| Check | Finding |
+|---|---|
+| Overview | Accurate: a referendum on separation, an overwhelming vote to stay, Carney warning about unity beforehand, deep divisions remaining. All correctly cited. |
+| Unsupported claim | "welcomed the result **as a boost for his leadership**": the "boost" is NPR's framing and a BBC analyst's opinion, not something Carney said. Minor. |
+| Missing context | The Fox excerpt notes the vote was **non-binding** and that there are divisions within the UCP. The overview doesn't mention that it was non-binding. |
+| Perspectives | "Insufficient evidence" is **correct**. The excerpts report divisions but never state the separatists' arguments, so a pro-independence viewpoint would have had to be invented. |
+
+### 2. France riots (`s_a2f096fefb2a7d73f665af61`): 6 articles, Fox News, NPR
+
+| Check | Finding |
+|---|---|
+| Overview | Accurate, and it caught a **real conflict between sources**: "over 8,000 arrests" [1] vs. "nearly 1,800 arrests" [2], reported under both disagreement and uncertainty. |
+| Unsupported claim | The "Political critics" perspective says Le Pen and Mélenchon criticized Macron "for attending a concert and traveling to Kuwait". The excerpts attribute only the **Kuwait trip** criticism to them [6]; the concert criticism is unattributed [2]. Two separate critics were merged into one statement. |
+| Perspectives | Two grounded viewpoints (Macron's statements vs. political and media critics), each cited. Neither is named after an outlet. |
+
+### 3. Ilhan Omar probe (`s_c9bec4fb200e38ebaf158cfa`): 2 articles, BBC News, Fox News
+
+| Check | Finding |
+|---|---|
+| Overview | Accurate on what Obama and Trump said. Both quotes ("so appalling", "a disgrace to our country") appear in the input titles, so the quotation marks are legitimate. |
+| Unsupported claims | "**former** President Barack Obama" and "Democratic **Representative** Ilhan Omar": true, but the inputs say only "Obama" and "the Democrat". This is outside knowledge, which the rules forbid. |
+| Formatting defect | Prompt reference IDs leaked into the text: "…'so appalling' **(A1)**". |
+| Perspectives | Obama vs. Trump, each grounded in their own reported statements. |
+
+### Corrections made (prompt version `2026-10-20.2`)
+
+1. **No outside titles or roles:** the prompt now says not to add titles, roles or parties unless the input states them.
+2. **Correct attribution:** the prompt now says to attribute each claim or criticism only to whoever the article says made it, and not to merge separate critics.
+3. **No reference IDs in text:** the prompt says so, and validation now strips any "(A1)" or "[A2, A3]" that still appears, logging that it did.
+4. **Regeneration on prompt change:** stored summaries made with an older prompt version are regenerated on the next pass, so the corrected prompt applies to every story, not just new ones.
+
+*Re-check after regeneration:* see the next section.
