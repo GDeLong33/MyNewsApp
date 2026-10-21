@@ -26,10 +26,10 @@ export const config = {
   // AI summaries (Gemini). No key = summaries stay "pending"; the rest of the server works normally.
   geminiApiKey: process.env.GEMINI_API_KEY || undefined,
   geminiModel: process.env.GEMINI_MODEL || undefined,
-  // Free-tier pacing. The free quota seen on 2026-10-20 was 20 requests/day for gemini-3.8-flash, so by default the
-  // server spends at most 10 calls per quota day (retries included), 2 stories per hourly run, on stories with 2+ articles.
-  aiDailyBudget: positiveInt(process.env.AI_DAILY_BUDGET, 10),
-  aiMaxPerRun: positiveInt(process.env.AI_MAX_PER_RUN, 2),
+  // Free-tier pacing. gemini-3.5-flash-lite allows 500 requests/day on this project (2026-10-20), so by default the
+  // server spends at most half of that (retries included), up to 20 stories per hourly run, on stories with 2+ articles.
+  aiDailyBudget: positiveInt(process.env.AI_DAILY_BUDGET, 250),
+  aiMaxPerRun: positiveInt(process.env.AI_MAX_PER_RUN, 20),
   aiMinArticles: positiveInt(process.env.AI_MIN_ARTICLES, 2),
   aiMinIntervalMs: positiveInt(process.env.AI_MIN_INTERVAL_MS, 6500),
 };

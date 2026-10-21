@@ -117,11 +117,14 @@ export function storiesNeedingSummary(
     ) as unknown as CandidateRow[];
 }
 
-/** Model calls already made in the current quota day. */
-export function callsToday(db: Db, now: Date): number {
+/**
+ * Calls already made to this model in the current quota day. Google's free limits are per model, so calls to a
+ * previously used model don't count against the current one. (Stored names may carry a version suffix.)
+ */
+export function callsToday(db: Db, now: Date, model: string): number {
   const row = db
-    .prepare("SELECT COUNT(*) AS n FROM ai_calls WHERE started_at >= ?")
-    .get(startOfQuotaDay(now).toISOString()) as { n: number };
+    .prepare("SELECT COUNT(*) AS n FROM ai_calls WHERE started_at >= ? AND (model = ? OR model GLOB ? || '-[0-9]*')")
+    .get(startOfQuotaDay(now).toISOString(), model, model) as { n: number };
   return Number(row.n);
 }
 
@@ -147,7 +150,7 @@ async function runOnce(db: Db, options: SummarizerOptions, runOptions: RunOption
   const client = options.client;
 
   const budget = options.dailyBudget ?? Number.POSITIVE_INFINITY;
-  let used = callsToday(db, now());
+  let used = callsToday(db, now(), client.model);
   if (used >= budget) {
     return { ...result, stoppedEarly: `daily AI budget used (${used}/${budget} calls since midnight Pacific)` };
   }

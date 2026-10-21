@@ -81,7 +81,7 @@ It also includes `ai`, the stored AI analysis. See [ai.md](ai.md) for when each 
   "message": "AI-generated analysis of the coverage listed below.",
   "label": "AI-generated",
   "generatedAt": "2026-10-20T23:01:12.000Z",
-  "model": "gemini-3.8-flash",
+  "model": "gemini-3.5-flash-lite",
   "promptVersion": "2026-10-20.1",
   "inputScope": "Generated from feed headlines and short excerpts only, not full articles. Read the original coverage for full context.",
   "inputArticleIds": ["9c0e…", "75ee…"],

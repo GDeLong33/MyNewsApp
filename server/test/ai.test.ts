@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { GeminiClient, DEFAULT_MODEL_CONFIG, ModelError, type ModelClient, type ModelRequest } from "../src/ai/model.js";
 import { ARTICLES_BEGIN, ARTICLES_END, buildUserPrompt, SYSTEM_PROMPT } from "../src/ai/prompt.js";
 import { startOfQuotaDay } from "../src/ai/quota.js";
-import { createSummarizer } from "../src/ai/summarizer.js";
+import { callsToday, createSummarizer } from "../src/ai/summarizer.js";
 import { InvalidOutputError, validateAnalysis } from "../src/ai/validate.js";
 import { createApp } from "../src/app.js";
 import { createCollector, type FeedConfig } from "../src/collector/collect.js";
@@ -365,6 +365,19 @@ test("the daily budget caps model calls (retries included) and resets the next q
   clock.now = new Date("2026-10-21T07:30:00Z"); // next Pacific day
   assert.equal((await summarizer.run()).generated, 2);
   assert.equal(model.calls.length, 4);
+});
+
+test("the budget is counted per model, matching Google's per-model free limits", async () => {
+  const db = openDb(":memory:");
+  const insert = db.prepare(`INSERT INTO ai_calls (story_id, started_at, duration_ms, model, prompt_version, input_hash, article_count, ok)
+    VALUES ('s', ?, 1, ?, 'v', 'h', 1, 1)`);
+  insert.run(NOW.toISOString(), "gemini-3.8-flash");
+  insert.run(NOW.toISOString(), "gemini-3.8-flash");
+  insert.run(NOW.toISOString(), "gemini-3.5-flash-lite-001");
+  insert.run(NOW.toISOString(), "gemini-3.5-flash-lite");
+  assert.equal(callsToday(db, NOW, "gemini-3.5-flash-lite"), 2);
+  assert.equal(callsToday(db, NOW, "gemini-3.8-flash"), 2);
+  assert.equal(callsToday(db, NOW, "gemini-3.5-flash"), 0, "a different model with a shared prefix is not counted");
 });
 
 test("stories below the article minimum are never sent to the model and say why", async () => {

@@ -17,7 +17,9 @@ Output is generated during backend processing, stored in SQLite, and served to e
 ## Model configuration
 
 - **Provider:** Google Gemini API (`generativelanguage.googleapis.com/v1beta`), free tier.
-- **Model:** `gemini-3.8-flash` by default. Override it with `GEMINI_MODEL`. The model version Gemini reports back is stored with each summary and each call.
+- **Model:** `gemini-3.5-flash-lite` by default. Override it with `GEMINI_MODEL`. The model version Gemini reports back is stored with each summary and each call.
+  - The project's free tier for it is **500 requests per day, 15 per minute and 250K input tokens per minute** (per ai.dev/rate-limit, October 20, 2026).
+  - It replaced `gemini-3.8-flash`, which worked but allows only 20 requests per day. That limit ran out on the first day.
   - The first choice was `gemini-2.5-flash`. On the first deploy (October 20), all 40 calls in that batch failed with HTTP 404 "no longer available to new users", and the API named `gemini-3.8-flash` as the replacement.
   - That incident led to two fixes. HTTP 400/401/403/404 is now a *configuration error* that stops the batch after one call. And `POST /admin/summarize?retryFailed=true` skips the 2-hour retry wait once the setting is fixed.
 - **Settings:** temperature 0.2, max output 4,096 tokens, 60-second timeout. JSON output is forced with `responseMimeType: application/json` and a `responseSchema`.
@@ -97,15 +99,17 @@ Anything dropped is recorded in that call's `ai_calls.error` field for review.
 ## Quotas and cost
 
 - **Cost:** $0 on the free tier.
-- **Free-tier limit:** **20 requests per day** for `gemini-3.8-flash`, per the project's usage page at ai.dev/rate-limit on October 20, 2026. It resets at midnight Pacific time. The quota ran out on the first day after about 20 real calls, partly spent on single-source stories.
-- **The server's own budget, to stay inside that limit:**
+- **Free-tier limits** are per model and reset at midnight Pacific time:
+  - `gemini-3.5-flash-lite`: 500 requests per day, 15 per minute.
+  - `gemini-3.8-flash`: only 20 per day. It ran out on the first day after about 20 real calls, so the server switched to the lite model.
+- **The server's own budget, to stay inside those limits:**
 
   | Setting | Default | Effect |
   |---|---|---|
-  | `AI_DAILY_BUDGET` | 10 | At most 10 model calls per quota day (midnight to midnight Pacific), **retries included**. Leaves half the free quota spare for manual tests. |
+  | `AI_DAILY_BUDGET` | 250 | At most 250 calls per quota day (midnight to midnight Pacific) **to the configured model**, retries included. That's half the free quota, leaving room for manual tests. Calls to other models don't count, because Google's limits are per model. |
   | `AI_MIN_ARTICLES` | 2 | Only stories with 2+ current articles are summarized. Single-source stories without a summary show status `not_available`, explaining that AI analysis is reserved for multi-article stories to stay within the free quota. |
-  | `AI_MAX_PER_RUN` | 2 | At most 2 stories per hourly run, so the budget lasts through the day instead of being spent at the reset. |
-  | `AI_MIN_INTERVAL_MS` | 6,500 | Gap between calls |
+  | `AI_MAX_PER_RUN` | 20 | At most 20 stories per hourly run |
+  | `AI_MIN_INTERVAL_MS` | 6,500 | Gap between calls, about 9 per minute against the 15-per-minute limit |
 
 - **Priority order:** multi-publisher stories first, then larger, then newer. New articles joining a story, or an expiry, also cost a call to regenerate. On a busy news day, some multi-article stories may wait until the next day and show `pending` until then.
 - When the budget or Google's quota runs out, the batch stops cleanly (`stoppedEarly` says why). Stories keep any summary they already have.

@@ -9,12 +9,13 @@ export interface ModelConfig {
 }
 
 /**
- * Defaults; GEMINI_MODEL overrides the model name. gemini-2.5-flash was the first choice, but on 2026-10-20 the API
- * rejected it for new accounts ("no longer available to new users") and named gemini-3.8-flash as its replacement.
+ * Defaults; GEMINI_MODEL overrides the model name. History (2026-10-20): gemini-2.5-flash was rejected for new
+ * accounts; gemini-3.8-flash worked but its free tier allows only 20 requests/day; gemini-3.5-flash-lite allows
+ * 500/day on this project, enough to summarize every multi-article story.
  */
 export const DEFAULT_MODEL_CONFIG: ModelConfig = {
   provider: "gemini",
-  model: "gemini-3.8-flash",
+  model: "gemini-3.5-flash-lite",
   temperature: 0.2,
   maxOutputTokens: 4096,
   // Live calls to gemini-3.8-flash took 8-55 s on 2026-10-20; 60 s caused timeouts.
