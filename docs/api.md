@@ -24,7 +24,9 @@ Top stories, newest coverage first. There is one entry per story. Only articles 
       "updatedAt": "2026-10-20T21:14:03.000Z",
       "articleCount": 4,
       "publisherCount": 3,
-      "publishers": ["BBC News", "Fox News", "NPR"]
+      "publishers": ["BBC News", "NBC News", "NPR"],
+      "aiStatus": "ready",
+      "hasAiAnalysis": true
     }
   ]
 }

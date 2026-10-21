@@ -171,4 +171,18 @@ Reviewed October 20, 2026 (about 10:30 p.m. Eastern) on the deployed server. Eac
 
 **Correction (prompt `2026-10-20.3`):** perspectives must be genuinely different positions, such as the person being criticized vs. the critics, or two sides of a dispute. Several voices making the same point form one perspective. Opposing positions taken by named people count as distinct perspectives even when briefly described. The prompt still forbids inventing opposition.
 
-*Third check after regeneration with `2026-10-20.3`:* see below.
+### Third check (prompt `2026-10-20.3`, 10:45 p.m. Eastern)
+
+- **France:** the perspectives are now **Macron** (called for calm, condemned the violence, cited the war's effect on fuel costs [1,4,5]) vs. **Le Pen & Mélenchon** (criticized his Kuwait trip [6]) and **Le Figaro** (critique of Macron, the justice system and immigration policy [3]). The government's side is back, and each critic is attributed correctly.
+- **Omar:** still Obama vs. Trump, with no outside titles and no reference IDs in the text.
+- **Alberta:** still "Insufficient evidence for distinct perspectives", correctly, because the separatists' arguments aren't in the excerpts.
+
+## Stories with contrasting perspectives (live, October 20, 2026)
+
+| Story | Perspectives (each cited to its articles) | Checked against excerpts |
+|---|---|---|
+| Violence erupts at France protests as Macron warns unrest is being exploited (`s_a2f096fefb2a7d73f665af61`) | Macron's government vs. political critics (Le Pen, Mélenchon) vs. press critique (Le Figaro) | Yes. Every claim is in [1]–[6]. |
+| Obama blasts federal probe of Ilhan Omar as 'so appalling' (`s_c9bec4fb200e38ebaf158cfa`) | Obama (the search was intimidation) vs. Trump (Omar could face jail or deportation) | Yes. Both quotes are in the input titles. |
+| Strait of Hormuz crisis traps 6,000 sailors as attacks on ships mount (`s_a9425dbaf7658eb1eff51a01`) | U.S. Central Command (most attacks fail; the strait is open) vs. Iran (claims mine strikes, accuses the U.S., urges a deal) | Yes. VHF Channel 16 [2], mines and the deal [3], "open" [1]. It also flags the mine claim as unconfirmed and Iran-only. |
+
+The other 30 summarized stories report "Insufficient evidence for distinct perspectives". Most are single-angle news, such as the World Series matchup or Pope Leo's first appearance after surgery, where inventing opposition would be wrong.

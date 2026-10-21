@@ -28,6 +28,7 @@ class StorySummary {
     required this.articleCount,
     required this.publisherCount,
     required this.publishers,
+    required this.hasAiAnalysis,
   });
 
   final String id;
@@ -37,6 +38,9 @@ class StorySummary {
   final int publisherCount;
   final List<String> publishers;
 
+  /// True when the story screen will show stored AI analysis (decided by the server).
+  final bool hasAiAnalysis;
+
   factory StorySummary.fromJson(Map<String, dynamic> json) => StorySummary(
         id: json['id'] as String,
         headline: json['headline'] as String,
@@ -44,6 +48,7 @@ class StorySummary {
         articleCount: json['articleCount'] as int,
         publisherCount: json['publisherCount'] as int,
         publishers: _strings(json['publishers']),
+        hasAiAnalysis: json['hasAiAnalysis'] as bool? ?? false,
       );
 }
 

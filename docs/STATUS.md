@@ -62,6 +62,10 @@ RSS feeds ──► hourly worker ──► SQLite (on VM disk) ──► API (/
   - 42 tests pass, including two related-but-separate cases (same person, same country) and a chaining case.
   - **Deployed October 20.** The first run on the server made 126 stories, 9 of them with 2–3 publishers. Live at `/stories`.
 
+- [x] Submission docs written (October 20, about 11 p.m.): root README (architecture, data model, API, services, costs, limitations, release notes, defect log), [verification.md](verification.md), [demo-checklist.md](demo-checklist.md) with the release test log, and a draft [ai-reflection.md](ai-reflection.md) for Gavin to personalize.
+
+**Remaining for submission:** paste the scheduled-run records into verification.md (check 4); connectivity-failure screenshot (check 9); 3 release test runs logged (check 11); Gavin edits the AI reflection; record the demo; submit the repo link and APK.
+
 ## Still to do
 
 The order follows the spec's work plan (§8). Each step gets tested before the next one starts.
@@ -99,8 +103,9 @@ Original checklist:
 - [x] Prompt, model config, Gemini client, validation, summarizer job, storage and `ai` field on `GET /stories/:id` ([ai.md](ai.md)). 14 tests with a fake model, 56 total.
 - [x] Deployed. `gemini-3.8-flash` works: 11 live summaries generated October 20. Fixed along the way: the old model returned 404, there were 503 overload errors and timeouts, and the free quota (20/day) ran out.
 - [ ] Deploy the daily budget (10 calls/day, stories with 2+ articles, 2 per run). Confirm multi-publisher stories get summaries after the quota resets at 07:00 UTC on October 21.
-- [ ] Manually review 3 summaries against their inputs, fix any unsupported claims, and record the results in ai.md.
-- [ ] Find 3+ stories with real contrasting perspectives for the demo.
+- [x] Switched to `gemini-3.5-flash-lite` (500/day free). Budget 250/day, counted per model. 33 multi-article stories summarized.
+- [x] Manual review of 3 summaries (Alberta, France, Omar), with unsupported claims found and fixed through prompt versions .2 and .3, re-checked twice. Recorded in ai.md.
+- [x] 3 stories with real contrasting perspectives: France, Ilhan Omar, Strait of Hormuz. Recorded in ai.md.
 
 ### 6. Flutter app (`/flutter_application_1`)
 - [x] Story list, story detail with the four button groups, AI overview screen, perspectives and perspective detail screens, local readable times, offline/timeout/404 messages, and the API URL as a `--dart-define` setting ([README](../flutter_application_1/README.md)).
@@ -110,7 +115,9 @@ Original checklist:
 - [x] Demo decision (October 20): Gavin has no Android phone, so the demo will use the release APK in the **Android Studio emulator**. The spec says emulator-only doesn't meet the phone requirement; Gavin judged the instructor will accept it. Say so openly in the demo.
 - [x] Emulator working (Pixel 8, Android 17). This needed SVM Mode enabled in the MSI BIOS and NDK 28.2.13676358 (installed with `android sdk install ndk/28.2.13676358`).
 - [x] Release APK built (44.8 MB) and installed on the emulator. The story list and a single-source story detail render correctly with live data (checked with adb screenshots, October 20).
-- [ ] Check on the emulator: an AI overview screen, the perspectives screens, a multi-publisher story with a chooser, opening links, the offline/error state, and back navigation.
+- [x] Checked on the emulator with live data (October 20, 10:47–10:50 p.m.): France story detail (AI overview card, Fox with 5 articles "Choose", NPR "Open", 2 Wikipedia background links, AI buttons); AI overview screen; perspectives list (3 viewpoints); perspective detail with evidence/limits, supporting coverage and Switch; publisher link opens Chrome and Back returns to the same screen.
+- [ ] Before the demo: open Chrome on the emulator once and finish its first-run screen, so links open directly.
+- [ ] Connectivity-failure evidence: build a test APK with a non-existent API URL and screenshot the retry screen. (Gavin doesn't want airplane mode used.)
 - [ ] Optional: local cache showing the last sync time, hiding expired stories even offline.
 - [ ] Release APK built and installed on the phone.
 

@@ -10,10 +10,12 @@ import { RETENTION_HOURS, retentionCutoffIso } from "./retention.js";
 interface StoryListRow {
   id: string;
   headline: string;
+  articles_hash: string;
   latest: string;
   article_count: number;
   publisher_count: number;
   publishers: string;
+  article_ids: string;
 }
 
 interface ArticleRow {
@@ -41,27 +43,40 @@ export function storiesRouter(db: Db, now: () => Date, aiMinArticles = 1): Route
     const cutoff = retentionCutoffIso(now());
     const rows = db
       .prepare(`
-        SELECT s.id, s.headline, MAX(a.published_at) AS latest, COUNT(*) AS article_count,
-               COUNT(DISTINCT a.publisher) AS publisher_count, GROUP_CONCAT(DISTINCT a.publisher) AS publishers
+        SELECT s.id, s.headline, s.articles_hash, MAX(a.published_at) AS latest, COUNT(*) AS article_count,
+               COUNT(DISTINCT a.publisher) AS publisher_count, GROUP_CONCAT(DISTINCT a.publisher) AS publishers,
+               GROUP_CONCAT(a.id) AS article_ids
         FROM stories s JOIN articles a ON a.story_id = s.id AND a.published_at >= ?
         GROUP BY s.id
         ORDER BY latest DESC, s.id
         LIMIT ?
       `)
       .all(cutoff, limit) as unknown as StoryListRow[];
+    const summaryFor = db.prepare("SELECT * FROM story_summaries WHERE story_id = ?");
 
     res.json({
       generatedAt: now().toISOString(),
       lastSuccessfulCollectionAt: lastSuccessfulCollectionAt(db),
       retentionHours: RETENTION_HOURS,
-      stories: rows.map((r) => ({
-        id: r.id,
-        headline: r.headline,
-        updatedAt: r.latest,
-        articleCount: Number(r.article_count),
-        publisherCount: Number(r.publisher_count),
-        publishers: r.publishers.split(",").sort(),
-      })),
+      stories: rows.map((r) => {
+        // Same rules as the detail view, so the list never advertises analysis the story screen won't show.
+        const ai = aiView(
+          summaryFor.get(r.id) as SummaryRow | undefined,
+          r.article_ids.split(","),
+          r.articles_hash,
+          aiMinArticles,
+        );
+        return {
+          id: r.id,
+          headline: r.headline,
+          updatedAt: r.latest,
+          articleCount: Number(r.article_count),
+          publisherCount: Number(r.publisher_count),
+          publishers: r.publishers.split(",").sort(),
+          aiStatus: ai.status,
+          hasAiAnalysis: ai.overview !== null,
+        };
+      }),
     });
   });
 

@@ -27,7 +27,7 @@ class NewsApi {
   final String baseUrl;
 
   Future<StoryListResponse> fetchStories() async =>
-      StoryListResponse.fromJson(await _get('/stories?limit=100'));
+      StoryListResponse.fromJson(await _get('/stories?limit=200'));
 
   Future<StoryDetail> fetchStory(String id) async =>
       StoryDetail.fromJson(await _get('/stories/${Uri.encodeComponent(id)}'));

@@ -6,11 +6,13 @@ The server collects articles from RSS feeds every hour and stores them in the `a
 
 | Publisher | Feeds |
 |---|---|
-| Fox News | latest, world, politics (`moxie.foxnews.com/google-publisher/*.xml`) |
+| NBC News | news, world, politics (`feeds.nbcnews.com/nbcnews/public/<section>`) |
 | NPR | news (1001), world (1004), politics (1014) (`feeds.npr.org/<id>/rss.xml`) |
 | BBC News | top stories, world (`feeds.bbci.co.uk/news/...`) |
 
-Each publisher has several section feeds so there's more overlapping coverage to group into stories. On the first live run (October 20, 2026), the 8 feeds returned 170 items, which became 151 unique articles.
+Each publisher has several section feeds so there's more overlapping coverage to group into stories.
+
+**Change on October 20, 2026:** **Fox News** (latest, world, politics) was replaced by **NBC News**, the project owner's choice. CNN was considered, but its RSS feeds stopped updating in April 2023. Fox articles already stored stay until they pass the 7-day window, unless removed by hand. A local live run with the new set returned 140 articles, which formed 11 multi-publisher stories (9 with the Fox set). Earlier evidence in these docs comes from the Fox, NPR and BBC set and is labeled with its date.
 
 ## Normalization and duplicate prevention
 

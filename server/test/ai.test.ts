@@ -400,6 +400,28 @@ test("stories below the article minimum are never sent to the model and say why"
   assert.equal((await getStory(db, storyOf(db, ebolaFox.link!), NOW, 2)).body.ai.status, "ready");
 });
 
+test("the story list flags which stories have AI analysis, matching the detail view", async () => {
+  const { db, collector, summarizer } = setup({ [FOX.url]: [ebolaFox, tariffs], [NPR.url]: [ebolaNpr], [BBC.url]: [] });
+  await collector.run("manual");
+  await summarizer.run();
+  // Make the single-source story ineligible, as in production (AI_MIN_ARTICLES=2).
+  db.prepare("DELETE FROM story_summaries WHERE story_id = ?").run(storyOf(db, tariffs.link!));
+
+  const server = createApp(db, { now: () => NOW, aiMinArticles: 2 }).listen(0);
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const list = await (await fetch(`http://127.0.0.1:${port}/stories`)).json();
+    const ebola = list.stories.find((s: { id: string }) => s.id === storyOf(db, ebolaFox.link!));
+    const single = list.stories.find((s: { id: string }) => s.id === storyOf(db, tariffs.link!));
+    assert.equal(ebola.hasAiAnalysis, true);
+    assert.equal(ebola.aiStatus, "ready");
+    assert.equal(single.hasAiAnalysis, false);
+    assert.equal(single.aiStatus, "not_available");
+  } finally {
+    server.close();
+  }
+});
+
 test("without an API key nothing is generated and the API says pending", async () => {
   const { db, collector, summarizer } = setup({ [FOX.url]: [tariffs], [NPR.url]: [], [BBC.url]: [] }, null);
   await collector.run("manual");
