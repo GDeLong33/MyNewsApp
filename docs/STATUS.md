@@ -23,7 +23,7 @@ RSS feeds ──► hourly worker ──► SQLite (on VM disk) ──► API (/
 | Deployed backend, persistent storage, API, server/client split | 15 | Partly done: deployed with `/health` only, no story API yet |
 | Three-publisher ingestion, hourly schedule, dedupe, 7-day retention | 20 | Done and deployed; hourly run records still to collect for evidence |
 | Automatic story grouping | 15 | Done and deployed: 9 multi-publisher stories on live data |
-| Flutter list, detail, buttons, usability, beta readiness | 20 | Not started: default `flutter create` scaffold only |
+| Flutter list, detail, buttons, usability, beta readiness | 20 | Screens written and checked against the live API; not yet compiled, which needs Windows Developer Mode and Android Studio; needs an Android phone for the demo |
 | Grounded AI summaries, perspectives, attribution, shared reuse | 20 | Built and tested with a fake model (Gemini free tier chosen); needs a live test, deploy, and the manual review of 3 summaries |
 | Verification evidence, docs, demo, AI reflection | 10 | Partly done: spec copy, CLAUDE.md, deploy guide |
 
@@ -98,11 +98,12 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 - [ ] Find 3+ stories with real contrasting perspectives for the demo.
 
 ### 6. Flutter app (`/flutter_application_1`)
-- [ ] Story list: headline, time, publisher count, pull-to-refresh, and loading/empty/error states with retry.
-- [ ] Story detail: overview, plus Original coverage buttons (only for publishers that covered it), Background buttons, and an AI analysis button.
-- [ ] AI analysis screen and a screen for each perspective, labeled "AI-generated", with citations and the generation time.
-- [ ] Open links in the browser; Back returns to the same story.
-- [ ] Readable dates in local time; clear offline and timeout messages.
+- [x] Story list, story detail with the four button groups, AI overview screen, perspectives and perspective detail screens, local readable times, offline/timeout/404 messages, and the API URL as a `--dart-define` setting ([README](../flutter_application_1/README.md)).
+- [x] Android manifest: INTERNET permission for release builds, https VIEW query for links, app label "My News".
+- [ ] **Needs Gavin:** Windows Developer Mode on, Android Studio installed, licenses accepted.
+- [ ] First compile and run (Windows desktop or phone); fix anything found on a real screen.
+- [x] Demo decision (October 20): Gavin has no Android phone, so the demo will use the release APK in the **Android Studio emulator**. The spec says emulator-only doesn't meet the phone requirement; Gavin judged the instructor will accept it. Say so openly in the demo.
+- [ ] Create a Pixel emulator, then install and check the release APK on it (screenshots via adb).
 - [ ] Optional: local cache showing the last sync time, hiding expired stories even offline.
 - [ ] Release APK built and installed on the phone.
 

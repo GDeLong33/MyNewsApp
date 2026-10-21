@@ -1,30 +1,13 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:flutter_application_1/util/time_format.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flutter_application_1/main.dart';
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  final now = DateTime(2026, 10, 20, 15, 0);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('formats today, yesterday and older dates in local time', () {
+    expect(formatWhen(DateTime(2026, 10, 20, 9, 40), now: now), 'Today, 9:40 a.m.');
+    expect(formatWhen(DateTime(2026, 10, 19, 21, 5), now: now), 'Yesterday, 9:05 p.m.');
+    expect(formatWhen(DateTime(2026, 10, 14, 0, 30), now: now), 'Oct 14, 12:30 a.m.');
+    expect(formatClock(DateTime(2026, 10, 20, 12, 0)), '12:00 p.m.');
   });
 }
