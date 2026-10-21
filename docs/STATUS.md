@@ -64,6 +64,8 @@ RSS feeds ──► hourly worker ──► SQLite (on VM disk) ──► API (/
 
 - [x] Submission docs written (October 20, about 11 p.m.): root README (architecture, data model, API, services, costs, limitations, release notes, defect log), [verification.md](verification.md), [demo-checklist.md](demo-checklist.md) with the release test log, and a draft [ai-reflection.md](ai-reflection.md) for Gavin to personalize.
 
+- [x] October 20, about 11:20 p.m.: Fox News replaced by NBC News (server, needs a collect run to pull NBC); story list has an "AI analysis" tag and filters (All / With AI / 2+ publishers / publisher chips). New APK built (with OneDrive paused) and checked on the emulator. Existing Fox articles: Gavin to decide whether to purge now or let them expire (about October 27).
+
 **Remaining for submission:** paste the scheduled-run records into verification.md (check 4); connectivity-failure screenshot (check 9); 3 release test runs logged (check 11); Gavin edits the AI reflection; record the demo; submit the repo link and APK.
 
 ## Still to do

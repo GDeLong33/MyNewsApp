@@ -60,6 +60,27 @@ flutter build apk --release --dart-define=API_BASE_URL=https://your-server.examp
    - *Without a cable:* copy that file to the phone, open it, and allow "Install unknown apps" for your file manager when asked.
    - It's signed with Flutter's debug key, which is fine for installing it yourself and for the class submission, but not for the Play Store.
 
+## Troubleshooting
+
+**`AccessDeniedException` or "Unable to delete directory" under `build\` during `flutter build apk`:** the project is inside OneDrive, which syncs and locks files in the `build` folder after the first build. To fix it:
+
+1. Pause OneDrive (cloud icon → ⚙ → **Pause syncing**).
+2. Stop Gradle:
+   ```
+   $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; android\gradlew.bat --stop
+   ```
+3. Delete `build`: `Remove-Item build -Recurse -Force`
+4. Build again.
+
+Resume OneDrive afterwards.
+
+**Gradle asks for NDK 28.2.13676358 and fails to install it:** install it with Android's CLI:
+```
+& "$env:LOCALAPPDATA\Android\Sdk\cmdline-tools\latest\bin\android.exe" sdk install ndk/28.2.13676358
+```
+
+**The emulator says hardware acceleration isn't available:** enable virtualization (SVM Mode on AMD) in the PC's BIOS, and turn on **Windows Hypervisor Platform** in Windows Features.
+
 ## Show it through Phone Link
 
 - Install **Link to Windows** on the phone, which is preinstalled on many Samsung phones. Pair it with the **Phone Link** app on Windows.
