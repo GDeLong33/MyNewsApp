@@ -162,4 +162,34 @@ export const migrations: Migration[] = [
       ALTER TABLE story_summaries ADD COLUMN last_error_retryable INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: 6,
+    name: "background_resources",
+    sql: `
+      -- Context links (Wikipedia pages) found for stories. Kept only while some active story links to them.
+      CREATE TABLE background_resources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        description TEXT,
+        source TEXT NOT NULL,               -- 'Wikipedia'
+        fetched_at TEXT NOT NULL
+      );
+      CREATE TABLE story_background (
+        story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+        resource_id INTEGER NOT NULL REFERENCES background_resources(id) ON DELETE CASCADE,
+        matched_term TEXT NOT NULL,         -- the name from the story that led to this page
+        rank INTEGER NOT NULL,
+        PRIMARY KEY (story_id, resource_id)
+      );
+      -- Lookup cache so a name used by many stories ("Alberta") is fetched once a day, not once per story.
+      CREATE TABLE wiki_lookups (
+        term_key TEXT PRIMARY KEY,
+        resource_id INTEGER REFERENCES background_resources(id) ON DELETE SET NULL,
+        status TEXT NOT NULL,               -- found | none
+        checked_at TEXT NOT NULL
+      );
+      ALTER TABLE stories ADD COLUMN background_hash TEXT;   -- articles_hash when background was last chosen
+    `,
+  },
 ];

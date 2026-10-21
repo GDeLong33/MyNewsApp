@@ -8,6 +8,8 @@ import { bootStats, type Db } from "./db.js";
 export interface AppOptions {
   collector?: Collector;
   summarizer?: Summarizer;
+  /** Runs a background-resource pass (Wikipedia lookups). */
+  background?: () => Promise<unknown>;
   adminToken?: string;
   /** Clock for retention filtering; injectable for tests. */
   now?: () => Date;
@@ -32,7 +34,7 @@ export function createApp(db: Db, options: AppOptions = {}) {
   });
 
   if (options.collector) {
-    app.use("/admin", adminRouter(db, options.collector, options.adminToken, options.summarizer));
+    app.use("/admin", adminRouter(db, options.collector, options.adminToken, options.summarizer, options.background));
   }
 
   app.use((_req, res) => {

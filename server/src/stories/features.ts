@@ -61,18 +61,60 @@ const TITLE_WORDS = new Set(
  * A capitalized stopword at the start of a sentence ("The", "After") is ignored. Returns each phrase as tokens.
  */
 export function extractEntities(text: string): string[][] {
-  const phrases: string[][] = [];
+  return rawEntityPhrases(text)
+    .map((p) => tokenize(p.words.join(" ")).filter((t) => !TITLE_WORDS.has(t)))
+    .filter((p) => p.length > 0);
+}
+
+const cleanWord = (w: string) => w.replace(/['’]s$/, "").replace(/[.'’-]+$/, "");
+
+/** Lowercased words the text capitalizes somewhere other than the start of a sentence: evidence they're names. */
+export function nameLikeWords(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const p of rawEntityPhrases(text)) {
+    p.words.forEach((w, i) => {
+      if (!p.atStart || i > 0) out.add(cleanWord(w).toLowerCase());
+    });
+  }
+  return out;
+}
+
+/**
+ * The same phrases in their original spelling, for looking them up (e.g. on Wikipedia): leading and trailing
+ * titles and possessives removed, so "President Donald Trump's" becomes "Donald Trump". With `nameLike`, words
+ * at the start of a sentence are kept only if the text also capitalizes them elsewhere, so "Top Trump ally warns"
+ * gives "Trump" and "Violence erupts" gives nothing.
+ */
+export function entityLookupPhrases(text: string, nameLike?: Set<string>): string[] {
+  const out: string[] = [];
+  for (const p of rawEntityPhrases(text)) {
+    let words = p.words.map(cleanWord);
+    if (p.atStart && nameLike) {
+      while (words.length && !nameLike.has(words[0].toLowerCase())) words.shift();
+    }
+    while (words.length && TITLE_WORDS.has(words[0].toLowerCase().replace(/\.$/, ""))) words.shift();
+    while (words.length && (TITLE_WORDS.has(words.at(-1)!.toLowerCase()) || CONNECTORS.has(words.at(-1)!))) words.pop();
+    const phrase = words.join(" ").trim();
+    if (phrase.length >= 3) out.push(phrase);
+  }
+  return out;
+}
+
+function rawEntityPhrases(text: string): { words: string[]; atStart: boolean }[] {
+  const phrases: { words: string[]; atStart: boolean }[] = [];
   for (const sentence of text.split(/(?<=[.!?:;])\s+|\s+[-–—|]\s+/)) {
     const words = sentence.match(/[\p{L}\p{N}][\p{L}\p{N}'’.-]*/gu) ?? [];
     let current: string[] = [];
+    let currentAtStart = false;
     const flush = () => {
       while (current.length && CONNECTORS.has(current.at(-1)!)) current.pop();
-      if (current.length) phrases.push(tokenize(current.join(" ")).filter((t) => !TITLE_WORDS.has(t)));
+      if (current.length) phrases.push({ words: current, atStart: currentAtStart });
       current = [];
     };
     words.forEach((word, i) => {
       if (/^\p{Lu}/u.test(word)) {
         if (i === 0 && STOPWORDS.has(word.toLowerCase())) return;
+        if (current.length === 0) currentAtStart = i === 0;
         current.push(word);
       } else if (CONNECTORS.has(word) && current.length) {
         current.push(word);
@@ -82,7 +124,12 @@ export function extractEntities(text: string): string[][] {
     });
     flush();
   }
-  return phrases.filter((p) => p.length > 0);
+  return phrases;
+}
+
+/** Text to scan for names: the excerpt, plus the title unless it is Title Case. */
+export function entityText(title: string, excerpt: string | null): string {
+  return [isTitleCase(title) ? "" : title, excerpt ?? ""].filter(Boolean).join(". ");
 }
 
 export interface Features {
@@ -96,6 +143,5 @@ export function featuresFor(title: string, excerpt: string | null): Features {
   const tf = new Map<string, number>();
   for (const t of tokenize(title)) tf.set(t, (tf.get(t) ?? 0) + 2);
   for (const t of tokenize(excerpt ?? "")) tf.set(t, (tf.get(t) ?? 0) + 1);
-  const entityText = [isTitleCase(title) ? "" : title, excerpt ?? ""].filter(Boolean).join(". ");
-  return { tf, entities: extractEntities(entityText) };
+  return { tf, entities: extractEntities(entityText(title, excerpt)) };
 }

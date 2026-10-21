@@ -87,6 +87,14 @@ export function storiesRouter(db: Db, now: () => Date, aiMinArticles = 1): Route
     const byPublisher = new Map<string, ArticleRow[]>();
     for (const a of articles) byPublisher.set(a.publisher, [...(byPublisher.get(a.publisher) ?? []), a]);
 
+    const background = db
+      .prepare(`
+        SELECT r.title, r.url, r.description, r.source, b.matched_term
+        FROM story_background b JOIN background_resources r ON r.id = b.resource_id
+        WHERE b.story_id = ? ORDER BY b.rank
+      `)
+      .all(story.id) as { title: string; url: string; description: string | null; source: string; matched_term: string }[];
+
     // Stored AI output only; reading a story never calls the model.
     const summary = db.prepare("SELECT * FROM story_summaries WHERE story_id = ?").get(story.id) as SummaryRow | undefined;
     const ai = aiView(summary, articles.map((a) => a.id), story.articles_hash, aiMinArticles);
@@ -114,6 +122,14 @@ export function storiesRouter(db: Db, now: () => Date, aiMinArticles = 1): Route
             grouping: a.story_match_json ? JSON.parse(a.story_match_json) : null,
           })),
         })),
+      // Context links chosen by the server; empty means "No background resource available".
+      background: background.map((b) => ({
+        title: `${b.title} (${b.source})`,
+        url: b.url,
+        description: b.description,
+        source: b.source,
+        matchedTerm: b.matched_term,
+      })),
       ai,
     });
   });

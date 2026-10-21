@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { removeOrphanBackground } from "../background.js";
 import { transaction, type Db } from "../db.js";
 import { retentionCutoffIso } from "../retention.js";
 import { featuresFor } from "./features.js";
@@ -79,6 +80,8 @@ export function processStories(db: Db, now: Date): StoryStats {
         .prepare("DELETE FROM stories WHERE id NOT IN (SELECT story_id FROM articles WHERE story_id IS NOT NULL)")
         .run().changes,
     );
+    // Deleting a story cascades to its summary and background links; drop resources no story uses any more.
+    removeOrphanBackground(db);
 
     const refresh = db.prepare(`
       UPDATE stories SET headline = ?, updated_at = ?, article_count = ?, publisher_count = ?, articles_hash = ?

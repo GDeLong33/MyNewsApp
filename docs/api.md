@@ -64,7 +64,16 @@ One story, with its current articles grouped by publisher. Each publisher become
 - `publishedAtEstimated: true` means the feed gave no valid date, so the first-seen time is used. See [collection.md](collection.md).
 - `grouping` explains why the article joined the story. It is `null` for the article that founded the story. See [grouping.md](grouping.md).
 
-The detail response also includes `ai`, the stored AI analysis. See [ai.md](ai.md) for when each status applies.
+The detail response also includes `background`, the context links chosen by the server ([background.md](background.md)). It's an empty list when none qualified, and the app then shows "No background resource available":
+
+```json
+"background": [
+  { "title": "Mark Carney (Wikipedia)", "url": "https://en.wikipedia.org/wiki/Mark_Carney",
+    "description": "Prime Minister of Canada since 2025", "source": "Wikipedia", "matchedTerm": "Mark Carney" }
+]
+```
+
+It also includes `ai`, the stored AI analysis. See [ai.md](ai.md) for when each status applies.
 
 ```json
 "ai": {
@@ -108,5 +117,6 @@ Admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>`. They're described
 | `POST /admin/collect` | Run a collection now, including expiry and grouping. |
 | `GET /admin/runs` | Job log with per-feed results. Each run also records `articles_expired`, `stories_created`, `articles_joined` and `stories_removed`. |
 | `GET /admin/articles` | Raw stored articles. |
+| `POST /admin/background` | Choose background links now and wait for it to finish. |
 | `POST /admin/summarize` | Run an AI summarization pass now and wait for it to finish. |
 | `GET /admin/ai-calls` | AI call log, totals, and summary coverage. |

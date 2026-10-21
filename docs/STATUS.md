@@ -84,7 +84,12 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 - [ ] Add background links and AI fields to `GET /stories/:id` (steps 4–5).
 - [ ] Copy the API description into the final README.
 
-### 4. Background resources (server)
+### 4. Background resources (server): DONE in code, October 20 ([background.md](background.md))
+- [x] Wikipedia lookups for names in 2+ articles, or multi-word names in the headline; disambiguation and name-list pages skipped; up to 3 links per story; 24-hour cache; cleanup with the story. 8 tests, 71 total.
+- [x] Local live check: 54 of 130 stories have links (7 of 9 multi-publisher), and every link was read and judged relevant.
+- [ ] Deploy and confirm on the server.
+
+Original checklist:
 - [ ] Automatically find relevant links, for example by searching Wikipedia using the story's key entities. Store them per story.
 - [ ] Show "No background resource available" when nothing relevant is found.
 - [ ] Demo relevant links on 3+ stories.
@@ -103,7 +108,9 @@ The order follows the spec's work plan (§8). Each step gets tested before the n
 - [ ] **Needs Gavin:** Windows Developer Mode on, Android Studio installed, licenses accepted.
 - [ ] First compile and run (Windows desktop or phone); fix anything found on a real screen.
 - [x] Demo decision (October 20): Gavin has no Android phone, so the demo will use the release APK in the **Android Studio emulator**. The spec says emulator-only doesn't meet the phone requirement; Gavin judged the instructor will accept it. Say so openly in the demo.
-- [ ] Create a Pixel emulator, then install and check the release APK on it (screenshots via adb).
+- [x] Emulator working (Pixel 8, Android 17). This needed SVM Mode enabled in the MSI BIOS and NDK 28.2.13676358 (installed with `android sdk install ndk/28.2.13676358`).
+- [x] Release APK built (44.8 MB) and installed on the emulator. The story list and a single-source story detail render correctly with live data (checked with adb screenshots, October 20).
+- [ ] Check on the emulator: an AI overview screen, the perspectives screens, a multi-publisher story with a chooser, opening links, the offline/error state, and back navigation.
 - [ ] Optional: local cache showing the last sync time, hiding expired stories even offline.
 - [ ] Release APK built and installed on the phone.
 

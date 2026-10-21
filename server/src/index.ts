@@ -1,6 +1,7 @@
 import { DEFAULT_MODEL_CONFIG, GeminiClient } from "./ai/model.js";
 import { createSummarizer } from "./ai/summarizer.js";
 import { createApp } from "./app.js";
+import { updateBackground } from "./background.js";
 import { createCollector, markInterruptedRuns } from "./collector/collect.js";
 import { startHourlySchedule } from "./collector/scheduler.js";
 import { config } from "./config.js";
@@ -25,7 +26,22 @@ const summarizer = createSummarizer(db, {
   publishers: [...new Set(FEEDS.map((f) => f.publisher))],
 });
 
-const app = createApp(db, { collector, summarizer, adminToken: config.adminToken, aiMinArticles: config.aiMinArticles });
+// Background-link pass with a simple lock so the hourly cycle and the admin trigger never overlap.
+let backgroundRun: Promise<unknown> | null = null;
+function runBackground(): Promise<unknown> {
+  backgroundRun ??= updateBackground(db).finally(() => {
+    backgroundRun = null;
+  });
+  return backgroundRun;
+}
+
+const app = createApp(db, {
+  collector,
+  summarizer,
+  background: runBackground,
+  adminToken: config.adminToken,
+  aiMinArticles: config.aiMinArticles,
+});
 const server = app.listen(config.port, "0.0.0.0", () => {
   console.log(`My News server listening on :${config.port} (db: ${config.databasePath})`);
   if (!config.adminToken) console.warn("ADMIN_TOKEN is not set: /admin endpoints are disabled");
@@ -37,11 +53,16 @@ const server = app.listen(config.port, "0.0.0.0", () => {
   );
 });
 
-/** One hourly cycle: collect + group, then generate any missing or outdated AI summaries. */
+/** One hourly cycle: collect + group, choose background links, then generate missing or outdated AI summaries. */
 async function cycle(trigger: "schedule" | "startup") {
   try {
     await collector.run(trigger);
   } finally {
+    try {
+      await runBackground();
+    } catch (err) {
+      console.error("background pass failed", err);
+    }
     if (!summarizer.running) await summarizer.run();
   }
 }
@@ -56,7 +77,10 @@ if (config.collectOnStartup) {
   if (!last.at || Date.now() - Date.parse(last.at) > 50 * 60 * 1000) {
     cycle("startup").catch((err) => console.error("startup cycle failed", err));
   } else {
-    summarizer.run().catch((err) => console.error("startup summarization failed", err));
+    runBackground()
+      .catch((err) => console.error("startup background pass failed", err))
+      .then(() => summarizer.run())
+      .catch((err) => console.error("startup summarization failed", err));
   }
 }
 

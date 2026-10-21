@@ -75,7 +75,7 @@ export function aiView(
     currentArticleIds.length < minArticles
       ? noContent(
           "not_available",
-          `To stay within the free AI quota, AI analysis is only generated for stories covered by at least ${minArticles} articles. Read the original coverage below.`,
+          `To stay within the free AI quota, AI analysis is only generated for stories covered by at least ${minArticles} articles. The publisher's original coverage is still available.`,
         )
       : !failedNow
       ? noContent("pending", "AI analysis has not been generated for the current coverage yet.")

@@ -32,6 +32,7 @@ export function adminRouter(
   collector: Collector,
   adminToken: string | undefined,
   summarizer?: Summarizer,
+  background?: () => Promise<unknown>,
 ): Router {
   const router = Router();
   router.use(requireAdmin(adminToken));
@@ -41,12 +42,17 @@ export function adminRouter(
   router.post("/collect", async (_req, res) => {
     try {
       const summary = await collector.run("manual");
-      let summarizerStarted = false;
-      if (summarizer && !summarizer.running) {
-        summarizerStarted = true;
-        summarizer.run().catch((err) => console.error("background summarization failed", err));
-      }
-      res.json({ ...summary, summarizerStarted });
+      // Background links and AI summaries can take minutes; run them after responding.
+      const followUpStarted = !!(background || (summarizer && !summarizer.running));
+      void (async () => {
+        try {
+          if (background) await background();
+          if (summarizer && !summarizer.running) await summarizer.run();
+        } catch (err) {
+          console.error("post-collection processing failed", err);
+        }
+      })();
+      res.json({ ...summary, followUpStarted });
     } catch (err) {
       if (err instanceof RunInProgressError) {
         res.status(409).json({ error: "run_in_progress", message: err.message });
@@ -71,6 +77,15 @@ export function adminRouter(
       }
       throw err;
     }
+  });
+
+  // Manual background-link pass; waits for it to finish.
+  router.post("/background", async (_req, res) => {
+    if (!background) {
+      res.status(503).json({ error: "background_unavailable" });
+      return;
+    }
+    res.json(await background());
   });
 
   // Job log: recent runs, newest first, each with its per-feed results.
