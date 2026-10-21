@@ -158,4 +158,17 @@ Reviewed October 20, 2026 (about 10:30 p.m. Eastern) on the deployed server. Eac
 3. **No reference IDs in text:** the prompt says so, and validation now strips any "(A1)" or "[A2, A3]" that still appears, logging that it did.
 4. **Regeneration on prompt change:** stored summaries made with an older prompt version are regenerated on the next pass, so the corrected prompt applies to every story, not just new ones.
 
-*Re-check after regeneration:* see the next section.
+### Re-check after regeneration (prompt `2026-10-20.2`, 10:30 p.m. Eastern)
+
+| Earlier problem | Result |
+|---|---|
+| Omar: "former President", "Democratic Representative" | **Fixed.** Now "Obama" and "the Democrat", as in the input. |
+| Omar: "(A1)" in the text | **Fixed** |
+| France: concert criticism attributed to Le Pen and Mélenchon | **Fixed.** The concert criticism and their Kuwait criticism are separate statements. |
+| Alberta: "boost for his leadership" | **Fixed.** Now "a boost for national unity", matching NPR [3]. |
+| Alberta: "non-binding" missing | **Fixed.** Listed under uncertainties, citing Fox [1]. |
+| **New issue**, France perspectives | The two perspectives became "Le Pen & Mélenchon" and "Le Figaro": both critics of Macron, so one side presented as two. |
+
+**Correction (prompt `2026-10-20.3`):** perspectives must be genuinely different positions, such as the person being criticized vs. the critics, or two sides of a dispute. Several voices making the same point form one perspective. Opposing positions taken by named people count as distinct perspectives even when briefly described. The prompt still forbids inventing opposition.
+
+*Third check after regeneration with `2026-10-20.3`:* see below.
